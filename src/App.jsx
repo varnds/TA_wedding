@@ -386,15 +386,12 @@ export default function App() {
       setBirdGone(true);
       setIsBirdFlying(false);
       setBirdPosition("left");
-    }, 1800);
+    }, 1000);
   };
 
   const recallBird = () => {
     if (!birdGone || isBirdFlying || isNight) return;
     setBirdGone(false);
-    playChirpSound();
-    setBirdChirp(true);
-    setTimeout(() => setBirdChirp(false), 1500);
     setBirdPosition("flying-to-left");
     setIsBirdFlying(true);
     setTimeout(() => {
@@ -469,55 +466,111 @@ export default function App() {
     if (!ctx) return;
     const t = ctx.currentTime;
     const master = ctx.createGain();
-    master.gain.value = 0.24;
-    master.connect(ctx.destination);
+    const panner = ctx.createStereoPanner();
+    master.gain.value = 0.26;
+    panner.pan.value = 0.22;
+    master.connect(panner);
+    panner.connect(ctx.destination);
+
+    const neonHum = (startT, stopT) => {
+      const buzz = ctx.createOscillator();
+      const overtone = ctx.createOscillator();
+      const whine = ctx.createOscillator();
+      const bpf = ctx.createBiquadFilter();
+      const whineGain = ctx.createGain();
+      const g = ctx.createGain();
+      buzz.type = "triangle";
+      overtone.type = "sine";
+      whine.type = "sine";
+      buzz.frequency.value = 120;
+      overtone.frequency.value = 180;
+      whine.frequency.value = 3400;
+      bpf.type = "bandpass";
+      bpf.frequency.value = 420;
+      bpf.Q.value = 0.85;
+      buzz.connect(bpf);
+      overtone.connect(bpf);
+      bpf.connect(g);
+      whineGain.gain.value = 0.055;
+      whine.connect(whineGain).connect(g);
+      g.connect(master);
+      buzz.start(startT);
+      overtone.start(startT);
+      whine.start(startT);
+      buzz.stop(stopT);
+      overtone.stop(stopT);
+      whine.stop(stopT);
+      return g;
+    };
+
+    const neonStrike = (startT, fromHz, toHz, peak, duration) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(fromHz, startT);
+      osc.frequency.exponentialRampToValueAtTime(toHz, startT + duration * 0.75);
+      osc.frequency.linearRampToValueAtTime(toHz * 0.92, startT + duration);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(peak, startT + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001, startT + duration);
+      osc.connect(g).connect(master);
+      osc.start(startT);
+      osc.stop(startT + duration + 0.03);
+    };
+
+    const neonCrackle = (startT, vol) => {
+      const len = Math.floor(ctx.sampleRate * 0.016);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const bpf = ctx.createBiquadFilter();
+      bpf.type = "bandpass";
+      bpf.frequency.value = 1800 + Math.random() * 600;
+      bpf.Q.value = 2.2;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(vol, startT + 0.001);
+      g.gain.exponentialRampToValueAtTime(0.0001, startT + 0.014);
+      src.connect(bpf).connect(g).connect(master);
+      src.start(startT);
+      src.stop(startT + 0.02);
+    };
+
+    const flickerPattern = (gainNode, startT, peaks, tailStart) => {
+      gainNode.gain.setValueAtTime(0, startT);
+      peaks.forEach(({ at, level }) => gainNode.gain.setValueAtTime(level, startT + at));
+      gainNode.gain.setValueAtTime(peaks[peaks.length - 1].level, startT + tailStart);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, startT + tailStart + 0.22);
+    };
 
     if (turningOn) {
-      const click = ctx.createOscillator();
-      const clickGain = ctx.createGain();
-      click.type = "sine";
-      click.frequency.setValueAtTime(820, t);
-      click.frequency.exponentialRampToValueAtTime(1100, t + 0.05);
-      clickGain.gain.setValueAtTime(0, t);
-      clickGain.gain.linearRampToValueAtTime(0.12, t + 0.01);
-      clickGain.gain.exponentialRampToValueAtTime(0.0008, t + 0.14);
-      click.connect(clickGain).connect(master);
-      click.start(t);
-      click.stop(t + 0.16);
-
-      const hum = ctx.createOscillator();
-      const humGain = ctx.createGain();
-      hum.type = "sine";
-      hum.frequency.value = 88;
-      humGain.gain.setValueAtTime(0, t + 0.06);
-      humGain.gain.linearRampToValueAtTime(0.035, t + 0.18);
-      humGain.gain.exponentialRampToValueAtTime(0.0008, t + 0.55);
-      hum.connect(humGain).connect(master);
-      hum.start(t + 0.06);
-      hum.stop(t + 0.6);
+      neonStrike(t, 320, 2900, 0.045, 0.2);
+      const humGain = neonHum(t, t + 0.42);
+      flickerPattern(humGain, t, [
+        { at: 0.01, level: 0.11 },
+        { at: 0.03, level: 0.02 },
+        { at: 0.05, level: 0.13 },
+        { at: 0.07, level: 0.025 },
+        { at: 0.09, level: 0.12 },
+        { at: 0.11, level: 0.03 },
+        { at: 0.13, level: 0.14 },
+        { at: 0.16, level: 0.08 },
+        { at: 0.18, level: 0.15 },
+      ], 0.18);
+      [0.01, 0.05, 0.09, 0.13].forEach((at) => neonCrackle(t + at, 0.012 + Math.random() * 0.006));
     } else {
-      // Mirror of turn-on: warm hum dies away, then the same soft click descending
-      const hum = ctx.createOscillator();
-      const humGain = ctx.createGain();
-      hum.type = "sine";
-      hum.frequency.value = 88;
-      humGain.gain.setValueAtTime(0.035, t);
-      humGain.gain.exponentialRampToValueAtTime(0.0008, t + 0.34);
-      hum.connect(humGain).connect(master);
-      hum.start(t);
-      hum.stop(t + 0.38);
-
-      const click = ctx.createOscillator();
-      const clickGain = ctx.createGain();
-      click.type = "sine";
-      click.frequency.setValueAtTime(1100, t + 0.1);
-      click.frequency.exponentialRampToValueAtTime(620, t + 0.15);
-      clickGain.gain.setValueAtTime(0, t + 0.1);
-      clickGain.gain.linearRampToValueAtTime(0.12, t + 0.11);
-      clickGain.gain.exponentialRampToValueAtTime(0.0008, t + 0.24);
-      click.connect(clickGain).connect(master);
-      click.start(t + 0.1);
-      click.stop(t + 0.26);
+      neonStrike(t, 2600, 380, 0.03, 0.16);
+      const humGain = neonHum(t, t + 0.28);
+      flickerPattern(humGain, t, [
+        { at: 0, level: 0.14 },
+        { at: 0.03, level: 0.04 },
+        { at: 0.06, level: 0.09 },
+        { at: 0.09, level: 0.02 },
+        { at: 0.12, level: 0.05 },
+      ], 0.12);
+      [0.03, 0.09].forEach((at) => neonCrackle(t + at, 0.008));
     }
   };
 
@@ -761,7 +814,7 @@ export default function App() {
         zIndex: 8,
         background: "#0A0E25",
         opacity: isNight && !lanternOn ? 0.5 : 0,
-        transition: "opacity 1.1s ease"
+        transition: "opacity 0.45s ease"
       }} />
       {/* Frosty chill vignette — flashes in during the winter shiver */}
       <div style={{
@@ -909,44 +962,52 @@ export default function App() {
               <g
                 className="moon-scene"
                 transform="translate(820, 125) rotate(-16)"
-                style={{
-                  opacity: isNight ? (lanternOn ? 0.28 : 1) : 0,
-                  filter: isNight && !lanternOn ? "brightness(1.14)" : "none",
-                  transition: "opacity 1s ease, filter 1s ease"
-                }}
+                style={{ opacity: isNight ? 1 : 0, transition: "opacity 1s ease" }}
               >
-                <ellipse cx="6" cy="-2" rx="112" ry="96" fill="url(#moonBloom)" opacity="0.72" />
-                <circle cx="0" cy="0" r="58" fill="#7B86B8" opacity="0.1" />
-                <circle cx="0" cy="0" r="58" fill="#B8C2EA" opacity="0.06" filter="url(#moonSoft)" />
-                <circle cx="0" cy="0" r="60" fill="#FFF6D6" opacity="0.22" filter="url(#moonGlow)" />
-                <g mask="url(#moonCrescent)">
-                  <circle cx="0" cy="0" r="56" fill="url(#moonSurface)" />
-                  <ellipse cx="-10" cy="10" rx="17" ry="13" fill="#E5DCC0" opacity="0.34" />
-                  <ellipse cx="8" cy="-14" rx="11" ry="8" fill="#D9D0B6" opacity="0.28" />
-                  <ellipse cx="-18" cy="-8" rx="7" ry="5" fill="#CEC4A8" opacity="0.22" />
+                {/* Halo, bloom, sparkles — hidden while the street lantern is lit */}
+                <g style={{ opacity: isNight && !lanternOn ? 1 : 0, transition: "opacity 0.45s ease" }}>
+                  <ellipse cx="6" cy="-2" rx="112" ry="96" fill="url(#moonBloom)" opacity="0.72" />
+                  <circle cx="0" cy="0" r="58" fill="#B8C2EA" opacity="0.06" filter="url(#moonSoft)" />
+                  <circle cx="0" cy="0" r="60" fill="#FFF6D6" opacity="0.22" filter="url(#moonGlow)" />
+                  <g fill="#FFF9E8">
+                    <circle cx="-74" cy="-30" r="2" className="moon-sparkle moon-sparkle-0" />
+                    <circle cx="-88" cy="6" r="1.3" className="moon-sparkle moon-sparkle-1" />
+                    <circle cx="-64" cy="36" r="1.6" className="moon-sparkle moon-sparkle-2" />
+                    <path d="M -96 -14 l2.2 0 l0.7 2.2 l-1.3 -1 l-1.3 1 z" className="moon-sparkle moon-sparkle-3" />
+                  </g>
                 </g>
-                <path
-                  d="M -52 -8 A 56 56 0 1 1 -18 52"
-                  fill="none"
-                  stroke="url(#moonLimb)"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  mask="url(#moonCrescent)"
-                />
-                <g fill="#FFF9E8">
-                  <circle cx="-74" cy="-30" r="2" className="moon-sparkle moon-sparkle-0" />
-                  <circle cx="-88" cy="6" r="1.3" className="moon-sparkle moon-sparkle-1" />
-                  <circle cx="-64" cy="36" r="1.6" className="moon-sparkle moon-sparkle-2" />
-                  <path d="M -96 -14 l2.2 0 l0.7 2.2 l-1.3 -1 l-1.3 1 z" className="moon-sparkle moon-sparkle-3" />
+                {/* Crescent — dim when lantern on, bright (not scene-lighting) when off */}
+                <g
+                  style={{
+                    opacity: isNight ? (lanternOn ? 0.28 : 1) : 0,
+                    filter: isNight && !lanternOn ? "brightness(1.14)" : "none",
+                    transition: "opacity 0.45s ease, filter 0.45s ease"
+                  }}
+                >
+                  <circle cx="0" cy="0" r="58" fill="#7B86B8" opacity="0.1" />
+                  <g mask="url(#moonCrescent)">
+                    <circle cx="0" cy="0" r="56" fill="url(#moonSurface)" />
+                    <ellipse cx="-10" cy="10" rx="17" ry="13" fill="#E5DCC0" opacity="0.34" />
+                    <ellipse cx="8" cy="-14" rx="11" ry="8" fill="#D9D0B6" opacity="0.28" />
+                    <ellipse cx="-18" cy="-8" rx="7" ry="5" fill="#CEC4A8" opacity="0.22" />
+                  </g>
+                  <path
+                    d="M -52 -8 A 56 56 0 1 1 -18 52"
+                    fill="none"
+                    stroke="url(#moonLimb)"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    mask="url(#moonCrescent)"
+                  />
                 </g>
               </g>
             </g>
 
             {/* Drifting Clouds — SVG motion keeps them reliably in front of the moon */}
             <g
-              fill={isNight ? "#D4DBF2" : "#FFFFFF"}
-              opacity={isNight ? 0.92 : 0.88}
-              style={{ transition: "opacity 1s ease, fill 1s ease" }}
+              fill={isNight ? (lanternOn ? "#5C6688" : "#7A84A8") : "#FFFFFF"}
+              opacity={isNight ? (lanternOn ? 0.42 : 0.58) : 0.88}
+              style={{ transition: "opacity 0.45s ease, fill 0.45s ease" }}
             >
               <g>
                 <animateTransform attributeName="transform" type="translate" from="-300 0" to="1420 0" dur="72s" repeatCount="indefinite" />
@@ -1092,7 +1153,7 @@ export default function App() {
               className={`wind-chime-assembly ${chimeContact ? "chime-clang" : ""}`}
               style={{
                 cursor: "pointer",
-                transformOrigin: "48px 145px",
+                transformOrigin: "48px 139px",
                 animation: `unifiedSway ${6.5 / windStrength}s ease-in-out infinite`
               }}
               onClick={(e) => {
@@ -1102,21 +1163,21 @@ export default function App() {
                 setTimeout(() => setChimeContact(false), 1500);
               }}
             >
-              <line x1="48" y1="145" x2="48" y2="155" stroke={P.ink} strokeWidth="1.5" />
-              <rect x="36" y="155" width="24" height="4" rx="1" fill={P.soft} stroke={P.ink} strokeWidth="1" />
+              <line x1="48" y1="139" x2="48" y2="149" stroke={P.ink} strokeWidth="1.5" />
+              <rect x="36" y="149" width="24" height="4" rx="1" fill={P.soft} stroke={P.ink} strokeWidth="1" />
 
-              <rect x="39" y="159" width="3" height="28" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
-              <rect x="46" y="159" width="3" height="34" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
-              <rect x="53" y="159" width="3" height="24" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
+              <rect x="39" y="153" width="3" height="28" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
+              <rect x="46" y="153" width="3" height="34" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
+              <rect x="53" y="153" width="3" height="24" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
 
-              <circle cx="48" cy="178" r="2.5" fill={P.accent} />
-              <line x1="48" y1="178" x2="48" y2="200" stroke={P.ink} strokeWidth="1" />
-              <polygon points="45,200 51,200 48,206" fill={P.accent} stroke={P.ink} strokeWidth="1" />
+              <circle cx="48" cy="172" r="2.5" fill={P.accent} />
+              <line x1="48" y1="172" x2="48" y2="194" stroke={P.ink} strokeWidth="1" />
+              <polygon points="45,194 51,194 48,200" fill={P.accent} stroke={P.ink} strokeWidth="1" />
 
               {chimeContact && (
                 <g stroke={P.accent} strokeWidth="1" fill="none" opacity="0.8">
-                  <circle cx="48" cy="180" r="15" className="sound-ring" />
-                  <circle cx="48" cy="180" r="28" className="sound-ring" style={{ animationDelay: "0.2s" }} />
+                  <circle cx="48" cy="174" r="15" className="sound-ring" />
+                  <circle cx="48" cy="174" r="28" className="sound-ring" style={{ animationDelay: "0.2s" }} />
                 </g>
               )}
             </g>
@@ -1150,8 +1211,8 @@ export default function App() {
               const x = 70 + (i + 1) * spacing;
 
               const t = (x - 70) / 900;
-              const hangOffsets = [8, 6, 0, 14, 4];
-              const y = 138 + 48 * (1 - Math.pow(2 * t - 1, 2)) + (hangOffsets[i % hangOffsets.length]);
+              const hangOffsets = [5, 4, 0, 9, 2];
+              const y = 133 + 44 * (1 - Math.pow(2 * t - 1, 2)) + (hangOffsets[i % hangOffsets.length]);
               const isHovered = hot === pc.id;
               const isSelected = selectedId === pc.id;
               const isHighlit = isHovered || isSelected;
@@ -1355,7 +1416,7 @@ export default function App() {
                 opacity: isNight && lanternOn ? 1 : 0,
                 mixBlendMode: "screen",
                 pointerEvents: "none",
-                transition: lanternIgniting ? "none" : "opacity 1.1s ease",
+                transition: lanternIgniting ? "none" : "opacity 0.5s ease",
                 animation: lanternIgniting ? "lanternIgniteFlicker 0.18s steps(1) forwards" : "none",
               }}
             >
@@ -1446,7 +1507,7 @@ export default function App() {
             zIndex: 12,
             opacity: isNight && !lanternOn ? 0.58 : 1,
             filter: isNight && !lanternOn ? "brightness(0.88) saturate(0.85)" : "none",
-            transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease, filter 1s ease"
+            transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease, filter 0.45s ease"
           }}>
             {Object.keys(SEASONS).map((key) => {
               const SeasonIcon = SEASONS[key].icon;
@@ -2113,17 +2174,17 @@ export default function App() {
           animation: birdFlyToLeft 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
         .bird-fly-away-right {
-          animation: birdFlyAwayRight 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+          animation: birdFlyAwayRight 1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
         .bird-fly-away-left {
-          animation: birdFlyAwayLeft 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+          animation: birdFlyAwayLeft 1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
 
         .chime-clang {
           animation: unifiedSway 1.1s ease-in-out infinite !important;
         }
         .sound-ring {
-          transform-origin: 48px 180px;
+          transform-origin: 48px 174px;
           animation: soundExpand 0.8s ease-out forwards;
         }
 
