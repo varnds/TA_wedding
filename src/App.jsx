@@ -174,10 +174,11 @@ const PRE_PLANTED_POPPIES = [
   { id: 100, x: -80, y: 438 },
   { id: 101, x: 80,  y: 442 },
   { id: 102, x: 300, y: 432 },
-  { id: 103, x: 520, y: 448 },
-  { id: 104, x: 760, y: 423 },
-  { id: 105, x: 980, y: 436 },
-  { id: 106, x: 1130, y: 444 },
+  { id: 103, x: 520, y: 436 },
+  { id: 104, x: 737, y: 528 },
+  { id: 107, x: 708, y: 526 },
+  { id: 105, x: 980, y: 474 },
+  { id: 106, x: 1130, y: 471 },
 
   { id: 200, x: -50, y: 470 },
   { id: 201, x: 150, y: 468 },
@@ -196,6 +197,19 @@ const PRE_PLANTED_POPPIES = [
   { id: 306, x: 1020, y: 506 },
   { id: 307, x: 1140, y: 512 }
 ];
+
+// Extends the same three-row meadow band into the left/right flanks — y anchored to front-hill surface
+const FLANK_POPPIES = [
+  { id: 402, x: -240, y: 473 },
+  { id: 403, x: -250, y: 477 },
+  { id: 405, x: -220, y: 510 },
+
+  { id: 501, x: 1280, y: 484 },
+  { id: 503, x: 1300, y: 485 },
+  { id: 505, x: 1270, y: 510 },
+];
+
+const ALL_SPRING_POPPIES = [...PRE_PLANTED_POPPIES, ...FLANK_POPPIES];
 
 const NIGHT_STARS = [...Array(34)].map((_, i) => {
   const h1 = Math.abs(Math.sin(i * 12.9898 + 78.233) * 43758.5453) % 1;
@@ -227,7 +241,7 @@ export default function App() {
   const lanternIgniteTimerRef = useRef(null);
   const [meteor, setMeteor] = useState(null);
 
-  const [bloomedFlowers, setBloomedFlowers] = useState(PRE_PLANTED_POPPIES);
+  const [bloomedFlowers, setBloomedFlowers] = useState(ALL_SPRING_POPPIES);
   const [rustledLeaves, setRustledLeaves] = useState([]);
   const [snowSplashes, setSnowSplashes] = useState([]);
   const [shimmerSparks, setShimmerSparks] = useState([]);
@@ -288,6 +302,10 @@ export default function App() {
     return "-310 -70 1660 700";
   })();
 
+  const [sceneMinX, , sceneWidth] = sceneViewBox.split(/\s+/).map(Number);
+  const sceneMaxX = sceneMinX + sceneWidth;
+  const poppyInset = 12; // petal radius — keep blooms fully inside the visible viewBox
+
   useEffect(() => {
     const l = document.createElement("link");
     l.rel = "stylesheet";
@@ -347,7 +365,7 @@ export default function App() {
     setBirdPosition("left");
     setIsBirdFlying(false);
     setBirdGone(false);
-    setBloomedFlowers(PRE_PLANTED_POPPIES);
+    setBloomedFlowers(ALL_SPRING_POPPIES);
     setRustledLeaves([]);
     setSnowSplashes([]);
     setShimmerSparks([]);
@@ -1068,23 +1086,6 @@ export default function App() {
                 />
               </g>
 
-              {currentSeasonKey === "spring" && (
-                <g style={{ transition: "all 1s ease", pointerEvents: "none" }}>
-                  {bloomedFlowers.map((f) => (
-                    <g key={f.id} transform={`translate(${f.x}, ${f.y})`}>
-                      <g className="poppy-bloom">
-                        <path d="M0 0 Q3 14 0 25" stroke="#3A6346" strokeWidth="1.6" fill="none" />
-                        <circle cx="-5" cy="-3" r="6" fill="#F43F5E" />
-                        <circle cx="5" cy="-3" r="6" fill="#F43F5E" />
-                        <circle cx="0" cy="5" r="6" fill="#E11D48" />
-                        <circle cx="0" cy="-6" r="6" fill="#E11D48" />
-                        <circle cx="0" cy="0" r="3.2" fill="#111827" />
-                        <circle cx="0" cy="0" r="1.5" fill="#FBBF24" />
-                      </g>
-                    </g>
-                  ))}
-                </g>
-              )}
             </g>
 
             {/* Clothesline posts */}
@@ -1339,6 +1340,27 @@ export default function App() {
                 );
               })}
             </g>
+
+            {/* Spring poppies — painted above hills & garments so stems stay visible */}
+            {currentSeasonKey === "spring" && (
+              <g style={{ transition: "all 1s ease", pointerEvents: "none" }}>
+                {bloomedFlowers
+                  .filter((f) => f.x >= sceneMinX + poppyInset && f.x <= sceneMaxX - poppyInset)
+                  .map((f) => (
+                  <g key={f.id} transform={`translate(${f.x}, ${f.y})`}>
+                    <g className="poppy-bloom">
+                      <path d="M0 0 Q3 14 0 25" stroke="#3A6346" strokeWidth="1.6" fill="none" />
+                      <circle cx="-5" cy="-3" r="6" fill="#F43F5E" />
+                      <circle cx="5" cy="-3" r="6" fill="#F43F5E" />
+                      <circle cx="0" cy="5" r="6" fill="#E11D48" />
+                      <circle cx="0" cy="-6" r="6" fill="#E11D48" />
+                      <circle cx="0" cy="0" r="3.2" fill="#111827" />
+                      <circle cx="0" cy="0" r="1.5" fill="#FBBF24" />
+                    </g>
+                  </g>
+                ))}
+              </g>
+            )}
 
             {/* Premium Light Straw Wicker Basket */}
             <g filter="url(#soft)" stroke={P.ink} strokeWidth="2.5" fill={P.cloth} strokeLinejoin="round" style={{ transition: "all 0.8s ease" }}>
