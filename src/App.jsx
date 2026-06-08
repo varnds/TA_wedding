@@ -10,6 +10,44 @@ import {
   Flower,
   Moon
 } from "lucide-react";
+import {
+  INTRO_HOLD_MS,
+  FOOTER_HEIGHT,
+  INTRO_DURATION_MS,
+  ROPE_PATH_LENGTH,
+  CAMERA_START_Y,
+  NAME_TEXT,
+  lerp,
+  smootherstep,
+  clamp,
+  computeIntroValues,
+  garmentLocal,
+  garmentFallOffset,
+  garmentRotation,
+  middlePieceExtraRot,
+  middlePieceSwingY,
+  GARMENT_ROT_PIVOT_Y,
+  gustRotation,
+  gustBillowY,
+  pinScale,
+  nameCharProgress,
+  nameCharOffset,
+  basketMotion,
+  BASKET_PHASE_START,
+  BASKET_CENTER_X,
+  BASKET_CENTER_Y,
+  BASKET_DUST_COLOR,
+  BASKET_DUST_OFFSETS,
+  basketDustPuff,
+  ropeBezierControl,
+  garmentHangPosition,
+  basketHasImpacted,
+  BASKET_IMPACT_PROGRESS,
+  BIRD_FLY_TO_LEFT_MS,
+  BIRD_INTRO_FLIGHT_WALL_MS,
+  BIRD_PERCH_X,
+  BIRD_PERCH_Y,
+} from "./introMath";
 
 const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 const DISPLAY = "'Fraunces', serif";
@@ -262,15 +300,69 @@ export default function App() {
   const birdStartleRef = useRef(() => {});
   const recallBirdRef = useRef(() => {});
   const birdGoneRef = useRef(false);
+  const introCompleteRef = useRef(false);
+  const introBirdLaunchRef = useRef(null);
   const [viewportWidth, setViewportWidth] = useState(
     () => (typeof window !== "undefined" ? window.innerWidth : 1200)
   );
+
+  const reducedMotion = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [introProgress, setIntroProgress] = useState(reducedMotion ? 1 : 0);
+  const [introComplete, setIntroComplete] = useState(reducedMotion);
+  const [introPlayId, setIntroPlayId] = useState(0);
+  const introActive = !introComplete;
+  introCompleteRef.current = introComplete;
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    if (introComplete) return;
+    let raf = 0;
+    let cancelled = false;
+    let lastPublished = -1;
+    const t0 = performance.now();
+
+    const publish = (p, force = false) => {
+      if (!force && Math.abs(p - lastPublished) < 0.0008) return;
+      lastPublished = p;
+      setIntroProgress(p);
+    };
+
+    const tick = (now) => {
+      if (cancelled) return;
+      const elapsed = now - t0;
+      if (elapsed < INTRO_HOLD_MS) {
+        publish(0);
+      } else {
+        const raw = clamp((elapsed - INTRO_HOLD_MS) / INTRO_DURATION_MS, 0, 1);
+        const p = smootherstep(raw);
+        if (basketHasImpacted(p) && !introBirdLaunchRef.current) {
+          introBirdLaunchRef.current = now;
+        }
+        publish(p, basketHasImpacted(p) && lastPublished < BASKET_IMPACT_PROGRESS);
+        if (raw >= 1) {
+          publish(1, true);
+          const birdDone = !introBirdLaunchRef.current
+            || (now - introBirdLaunchRef.current >= BIRD_INTRO_FLIGHT_WALL_MS);
+          if (birdDone) {
+            setIntroComplete(true);
+            return;
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [introComplete, introPlayId]);
 
   useEffect(() => {
     if (lanternIgniteTimerRef.current) {
@@ -302,9 +394,27 @@ export default function App() {
     return "-310 -70 1660 700";
   })();
 
-  const [sceneMinX, , sceneWidth] = sceneViewBox.split(/\s+/).map(Number);
+  const [sceneMinX, sceneMinY, sceneWidth, sceneHeight] = sceneViewBox.split(/\s+/).map(Number);
   const sceneMaxX = sceneMinX + sceneWidth;
   const poppyInset = 12; // petal radius — keep blooms fully inside the visible viewBox
+
+  const intro = computeIntroValues(introProgress, pieces.length);
+  const cameraT = introComplete ? 1 : intro.cameraT;
+  const activeViewBox = `${sceneMinX} ${lerp(CAMERA_START_Y, sceneMinY, cameraT)} ${sceneWidth} ${sceneHeight}`;
+  const footerProgress = introComplete ? 1 : intro.footerOpacity;
+  const settleBlend = introComplete ? 1 : clamp((introProgress - 0.96) / 0.04, 0, 1);
+  const hangPositions = pieces.map((_, i) => garmentHangPosition(i, pieces.length));
+  const ropeCtrl = introComplete
+    ? { cx: 520, cy: 196 }
+    : ropeBezierControl(introProgress, pieces.length, hangPositions.map((h) => h.x), intro.ropeDraw >= 0.98);
+  const ropeControlY = introComplete ? 196 : lerp(ropeCtrl.cy, 196, settleBlend);
+  const ropeControlX = introComplete ? 520 : lerp(ropeCtrl.cx, 520, settleBlend);
+  const basketAnim = basketMotion(intro.basket);
+  const showBasket = introComplete || introProgress >= BASKET_PHASE_START;
+  const basketOpacity = introComplete || introProgress >= BASKET_PHASE_START ? 1 : 0;
+  const nameChars = NAME_TEXT.split("");
+  const introBirdFlying = !introComplete && basketHasImpacted(introProgress);
+  const introBirdOpacity = introComplete ? 1 : (introBirdFlying ? 1 : 0);
 
   useEffect(() => {
     const l = document.createElement("link");
@@ -313,11 +423,8 @@ export default function App() {
       "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Suranna&family=Source+Sans+3:wght@400;500;600;700&display=swap";
     document.head.appendChild(l);
 
-    const welcomeFlightTimer = setTimeout(() => {
-      birdStartleRef.current();
-    }, 1500);
-
     const recurringFlight = setInterval(() => {
+      if (!introCompleteRef.current) return;
       if (birdGoneRef.current) {
         recallBirdRef.current();
       } else {
@@ -327,7 +434,6 @@ export default function App() {
 
     return () => {
       document.head.removeChild(l);
-      clearTimeout(welcomeFlightTimer);
       clearInterval(recurringFlight);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -372,7 +478,7 @@ export default function App() {
   };
 
   const triggerBirdStartle = () => {
-    if (isBirdFlying || birdGone || birdPosition.startsWith("flying")) return;
+    if (!introCompleteRef.current || isBirdFlying || birdGone || birdPosition.startsWith("flying")) return;
 
     setIsBirdFlying(true);
     setBirdChirp(true);
@@ -618,6 +724,27 @@ export default function App() {
     });
   };
 
+  const skipIntro = () => {
+    setIntroProgress(1);
+    setIntroComplete(true);
+    introBirdLaunchRef.current = null;
+    setBirdPosition("left");
+    setIsBirdFlying(false);
+    setBirdGone(false);
+  };
+
+  const replayIntro = () => {
+    setIntroProgress(0);
+    setIntroComplete(false);
+    setIntroPlayId((n) => n + 1);
+    introBirdLaunchRef.current = null;
+    setBirdPosition("left");
+    setIsBirdFlying(false);
+    setBirdGone(false);
+    setBirdChirp(false);
+    playChimeSound();
+  };
+
   const handleAddPiece = (e) => {
     e.preventDefault();
     if (pieces.length >= 8) {
@@ -728,6 +855,10 @@ export default function App() {
     ? (lanternOn ? "#1B2247" : P.cloth)
     : (sel ? "#FFF" : P.cloth);
   const footerNavColor = isNight ? (lanternOn ? "#1B2247" : P.cloth) : P.cloth;
+  const footerStripBg = `color-mix(in srgb, ${P.sky3} ${Math.round((1 - intro.ground) * 100)}%, ${P.hill3})`;
+  const footerRevealOpacity = introComplete
+    ? (nightFooterDim ? 0.52 : 1)
+    : footerProgress;
 
   const renderSeasonalParticles = () => {
     const count = currentSeasonKey === "night" ? 34 : 14;
@@ -791,7 +922,7 @@ export default function App() {
 
   return (
     <div
-      className={shiver ? "winter-shiver" : ""}
+      className={`${shiver ? "winter-shiver" : ""}${introActive ? " intro-active" : ""}`}
       style={{
         position: "fixed",
         inset: 0,
@@ -847,13 +978,26 @@ export default function App() {
 
       <div style={{ position: "absolute", inset: 0 }}>
         {/* PRIMARY INTERACTIVE PLAYGROUND */}
-        <div style={{ position: "absolute", inset: 0, bottom: 56, display: "flex", flexDirection: "column" }}>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          bottom: FOOTER_HEIGHT,
+          display: "flex",
+          flexDirection: "column",
+        }}>
 
           <svg
             ref={svgRef}
-            viewBox={sceneViewBox}
+            viewBox={activeViewBox}
             preserveAspectRatio="xMidYMax meet"
-            style={{ width: "100%", height: "100%", display: "block", minHeight: viewportWidth < 768 ? 380 : undefined }}
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "block",
+              flex: 1,
+              minHeight: viewportWidth < 768 ? 380 : undefined,
+              pointerEvents: introComplete ? "auto" : "none",
+            }}
             onClick={handleGroundInteraction}
           >
             <defs>
@@ -875,6 +1019,9 @@ export default function App() {
               </radialGradient>
               <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
                 <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor={P.ink} floodOpacity="0.12" />
+              </filter>
+              <filter id="dustBlur" x="-80%" y="-80%" width="260%" height="260%">
+                <feGaussianBlur stdDeviation="2.8" />
               </filter>
               <radialGradient id="lanternLight" cx="50%" cy="48%" r="50%">
                 <stop offset="0%" stopColor="#FFF9E6" stopOpacity="0.85" />
@@ -969,7 +1116,12 @@ export default function App() {
             {/* Sky is the page-level CSS gradient — no duplicate SVG fill (avoids a visible seam) */}
 
             {/* Distant glowing sun / moon — painted before clouds so clouds pass in front */}
-            <g style={{ transition: "all 1s ease" }}>
+            <g
+              style={{
+                opacity: introComplete ? 1 : intro.atmosphere,
+                transform: introComplete ? undefined : `translateY(${intro.sunRiseY * (1 - settleBlend)}px)`,
+              }}
+            >
               {/* SUN (day): soft halo + feathered disk + solid core */}
               <g style={{ opacity: isNight ? 0 : 1, transition: "opacity 1s ease" }}>
                 <circle cx="820" cy="180" r="115" fill="url(#sunDisk)" opacity="0.12" />
@@ -1024,8 +1176,12 @@ export default function App() {
             {/* Drifting Clouds — SVG motion keeps them reliably in front of the moon */}
             <g
               fill={isNight ? (lanternOn ? "#5C6688" : "#7A84A8") : "#FFFFFF"}
-              opacity={isNight ? (lanternOn ? 0.42 : 0.58) : 0.88}
-              style={{ transition: "opacity 0.45s ease, fill 0.45s ease" }}
+              opacity={
+                introComplete
+                  ? (isNight ? (lanternOn ? 0.42 : 0.58) : 0.88)
+                  : 0.92 * intro.atmosphere * (isNight ? (lanternOn ? 0.42 : 0.58) : 0.88)
+              }
+              style={{ transition: introActive ? "none" : "opacity 0.45s ease, fill 0.45s ease" }}
             >
               <g>
                 <animateTransform attributeName="transform" type="translate" from="-300 0" to="1420 0" dur="72s" repeatCount="indefinite" />
@@ -1048,7 +1204,17 @@ export default function App() {
             </g>
 
             {/* Animated Birds Flock (hidden at night) */}
-            <g stroke={P.ink} strokeWidth="2.4" fill="none" strokeLinecap="round" style={{ opacity: isNight ? 0 : 0.6, transition: "opacity 1s ease, stroke 1s ease" }}>
+            <g
+              stroke={P.ink}
+              strokeWidth="2.4"
+              fill="none"
+              strokeLinecap="round"
+              style={{
+                opacity: introComplete
+                  ? (isNight ? 0 : 0.6)
+                  : intro.atmosphere * (isNight ? 0 : 0.6),
+              }}
+            >
               <g className="flock-a">
                 <path d="M0 0 q9 -8 17 0 q8 -8 17 0" />
                 <path d="M44 16 q7 -6 13 0 q6 -6 13 0" />
@@ -1057,7 +1223,7 @@ export default function App() {
             </g>
 
             {/* LANDSCAPE HILL LAYERS */}
-            <g style={{ transition: "all 1s ease" }}>
+            <g style={{ opacity: introComplete ? 1 : intro.ground }}>
               <path
                 d="M -320 640 L -320 440 Q 250 370, 550 450 T 1360 410 L 1360 640 Z"
                 fill={P.hill1}
@@ -1089,9 +1255,15 @@ export default function App() {
             </g>
 
             {/* Clothesline posts */}
-            <g stroke={P.ink} strokeWidth="4" fill="none" strokeLinecap="round" style={{ transition: "stroke 1s ease" }}>
+            <g
+              stroke={P.ink}
+              strokeWidth="4"
+              fill="none"
+              strokeLinecap="round"
+              style={{ opacity: introComplete ? 1 : intro.ropeOpacity, transition: "stroke 1s ease" }}
+            >
               <path d="M70 130 V470" />
-              <path d="M970 130 V470" />
+              <path d="M970 130 V532" />
               <path d="M40 150 L100 130 M40 130 L100 150" strokeWidth="2.5" />
               <path d="M940 150 L1000 130 M940 130 L1000 150" strokeWidth="2.5" />
             </g>
@@ -1153,18 +1325,21 @@ export default function App() {
             <g
               className={`wind-chime-assembly ${chimeContact ? "chime-clang" : ""}`}
               style={{
-                cursor: "pointer",
-                transformOrigin: "48px 139px",
-                animation: `unifiedSway ${6.5 / windStrength}s ease-in-out infinite`
+                opacity: introComplete ? 1 : intro.atmosphere,
+                cursor: introComplete ? "pointer" : "default",
+                transformOrigin: "48px 132px",
+                animation: introComplete ? `unifiedSway ${6.5 / windStrength}s ease-in-out infinite` : "none",
               }}
               onClick={(e) => {
+                if (!introComplete) return;
                 e.stopPropagation();
                 setChimeContact(true);
                 playChimeSound();
                 setTimeout(() => setChimeContact(false), 1500);
               }}
             >
-              <line x1="48" y1="139" x2="48" y2="149" stroke={P.ink} strokeWidth="1.5" />
+              <line x1="48" y1="132" x2="48" y2="149" stroke={P.ink} strokeWidth="1.5" />
+              <circle cx="48" cy="132" r="1.8" fill={P.ink} />
               <rect x="36" y="149" width="24" height="4" rx="1" fill={P.soft} stroke={P.ink} strokeWidth="1" />
 
               <rect x="39" y="153" width="3" height="28" rx="1" fill={P.cloth} stroke={P.ink} strokeWidth="1" />
@@ -1184,14 +1359,25 @@ export default function App() {
             </g>
 
             {/* The line */}
-            <path id="line" className="sway-line"
-              d="M70 138 Q520 196 970 138"
-              stroke={P.ink} strokeWidth="2.5" fill="none" style={{ transition: "stroke 1s ease" }} />
+            <path
+              id="line"
+              className={introComplete ? "sway-line" : "intro-rope-loading"}
+              d={`M70 138 Q${ropeControlX} ${ropeControlY} 970 138`}
+              stroke={P.ink}
+              strokeWidth="2.5"
+              fill="none"
+              opacity={introComplete ? 1 : intro.ropeOpacity}
+              style={{
+                transition: introComplete ? "stroke 1s ease" : "none",
+                strokeDasharray: introComplete ? undefined : ROPE_PATH_LENGTH,
+                strokeDashoffset: introComplete ? undefined : ROPE_PATH_LENGTH * (1 - intro.ropeDraw),
+              }}
+            />
 
             <g style={{ opacity: isWinter ? 1 : 0, transition: "opacity 0.8s ease", pointerEvents: "none" }}>
                 <path
                   className="sway-line"
-                  d="M70 137 Q520 195 970 137"
+                  d={`M70 137 Q${ropeControlX} ${ropeControlY - 1} 970 137`}
                   stroke="#FFFFFF"
                   strokeWidth="3.5"
                   fill="none"
@@ -1207,16 +1393,24 @@ export default function App() {
 
             {/* PORTFOLIO CASE STUDY GARMENTS */}
             {pieces.map((pc, i) => {
-              const segmentCount = pieces.length + 1;
-              const spacing = 800 / segmentCount;
-              const x = 70 + (i + 1) * spacing;
-
-              const t = (x - 70) / 900;
-              const hangOffsets = [5, 4, 0, 9, 2];
-              const y = 133 + 44 * (1 - Math.pow(2 * t - 1, 2)) + (hangOffsets[i % hangOffsets.length]);
+              const { x, y } = hangPositions[i];
               const isHovered = hot === pc.id;
               const isSelected = selectedId === pc.id;
               const isHighlit = isHovered || isSelected;
+
+              const gLocal = introComplete ? 1 : garmentLocal(introProgress, i, pieces.length);
+              const showPiece = introComplete || gLocal > 0;
+              const fallY = introComplete ? 0 : (
+                garmentFallOffset(gLocal)
+                + middlePieceSwingY(gLocal, i)
+                + gustBillowY(introProgress, i, gLocal)
+              ) * (1 - settleBlend);
+              const pieceRot = introComplete ? 0 : (
+                garmentRotation(gLocal, i)
+                + middlePieceExtraRot(gLocal, i)
+                + gustRotation(introProgress, i, gLocal)
+              ) * (1 - settleBlend);
+              const pinS = introComplete ? 1 : pinScale(introProgress, i, pieces.length);
 
               const lampWarmth = isNight && lanternOn ? Math.pow(Math.max(0, Math.min(1, (x - 70) / 900)), 0.82) : 0;
               const windSpeedFactor = windStrength > 0 ? (9 + (i % 3) * 1.4) / windStrength : 1000;
@@ -1224,21 +1418,28 @@ export default function App() {
                 animationDuration: `${windSpeedFactor}s`,
                 animationDelay: `${i * -0.7}s`,
                 transformOrigin: `${x}px ${y}px`,
-                cursor: "pointer"
+                cursor: introComplete ? "pointer" : "default",
               };
 
               return (
                 <g key={pc.id}
                   className={`piece-wrapper ${isHighlit ? "lift" : ""}`}
+                  opacity={showPiece ? Math.min(1, introComplete ? 1 : gLocal / 0.06) : 0}
                   style={{ animationDelay: `${i * -0.4}s` }}
-                  onMouseEnter={() => setHot(pc.id)}
-                  onMouseLeave={() => setHot(null)}
+                  onMouseEnter={() => introComplete && setHot(pc.id)}
+                  onMouseLeave={() => introComplete && setHot(null)}
                   onClick={(e) => {
+                    if (!introComplete) return;
                     e.stopPropagation();
                     setSelectedId(pc.id);
                   }}
                 >
-                  <g style={{ transition: "all 0.5s ease" }}>
+                  <g transform={`translate(0 ${fallY})`}>
+                  <g transform={`rotate(${pieceRot} ${x} ${y + GARMENT_ROT_PIVOT_Y})`}>
+                  <g
+                    opacity={pinS > 0.01 ? 1 : 0}
+                    transform={`translate(${x} ${y}) scale(${Math.max(pinS, 0.001)}) translate(${-x} ${-y})`}
+                  >
                     <g>
                       <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="#C68A4E" />
                       <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="none" stroke="#8A5A2C" strokeWidth="0.6" opacity="0.7" />
@@ -1251,7 +1452,7 @@ export default function App() {
                     </g>
                   </g>
 
-                  <g style={animationStyle} className="cloth-body">
+                  <g style={introComplete ? animationStyle : { transformOrigin: `${x}px ${y}px` }} className={introComplete ? "cloth-body" : undefined}>
                     {clothShape(pc, x, y, isHighlit, P, newType, currentSeasonKey, lampWarmth)}
                     {isHighlit && (() => {
                       const labelW = Math.max(104, pc.title.length * 7.2 + 24);
@@ -1271,6 +1472,8 @@ export default function App() {
                       </g>
                       );
                     })()}
+                  </g>
+                  </g>
                   </g>
                 </g>
               );
@@ -1323,7 +1526,14 @@ export default function App() {
             ))}
 
             {/* Grass blades */}
-            <g stroke={P.ink} strokeWidth="2" fill="none" opacity="0.55" strokeLinecap="round" style={{ transition: "stroke 1s ease" }}>
+            <g
+              stroke={P.ink}
+              strokeWidth="2"
+              fill="none"
+              opacity={introComplete ? 0.55 : intro.ground * 0.55}
+              strokeLinecap="round"
+              style={{ transition: "stroke 1s ease" }}
+            >
               {[...Array(26)].map((_, i) => {
                 const gx = 30 + i * 39;
                 return (
@@ -1362,8 +1572,51 @@ export default function App() {
               </g>
             )}
 
-            {/* Premium Light Straw Wicker Basket */}
-            <g filter="url(#soft)" stroke={P.ink} strokeWidth="2.5" fill={P.cloth} strokeLinejoin="round" style={{ transition: "all 0.8s ease" }}>
+            {/* Basket landing dust — in front of ground, around basket base (exact spec) */}
+            {intro.dustVisible && (
+              <g
+                style={{ pointerEvents: "none" }}
+                opacity={intro.dustGroupOpacity}
+              >
+                {BASKET_DUST_OFFSETS.map((_, di) => {
+                  const puff = basketDustPuff(intro.basketLand, di);
+                  return (
+                    <ellipse
+                      key={`dust-puff-${di}`}
+                      cx={puff.cx}
+                      cy={puff.cy}
+                      rx={puff.rx}
+                      ry={puff.ry}
+                      fill={BASKET_DUST_COLOR}
+                      opacity={puff.opacity}
+                    />
+                  );
+                })}
+              </g>
+            )}
+
+            {/* Premium Light Straw Wicker Basket — visible from progress 0.88, hard on */}
+            {showBasket && (
+            <g
+              opacity={basketOpacity}
+              transform={
+                introComplete
+                  ? undefined
+                  : `translate(0 ${basketAnim.y * (1 - settleBlend)})`
+              }
+            >
+            <g
+              transform={
+                introComplete
+                  ? undefined
+                  : `translate(${BASKET_CENTER_X} ${BASKET_CENTER_Y}) rotate(${basketAnim.rot * (1 - settleBlend)}) translate(${-BASKET_CENTER_X} ${-BASKET_CENTER_Y})`
+              }
+              filter="url(#soft)"
+              stroke={P.ink}
+              strokeWidth="2.5"
+              fill={P.cloth}
+              strokeLinejoin="round"
+            >
               <path d="M110 505 Q100 488, 122 490" fill="none" stroke={P.ink} strokeWidth="3" />
               <path d="M250 505 Q260 488, 238 490" fill="none" stroke={P.ink} strokeWidth="3" />
 
@@ -1378,40 +1631,47 @@ export default function App() {
 
               <path d="M150 498 q30 -28 60 -2" fill="none" stroke={P.accent} strokeWidth="2.5" />
               <path d="M150 504 q14 -22 30 -6 q16 -18 30 0" fill="none" stroke={P.soft} strokeWidth="1.6" />
-            </g>
 
-            {/* Autumn leaves peeking out of the basket, fades with season */}
-            <g style={{ opacity: currentSeasonKey === "autumn" ? 1 : 0, transition: "opacity 1s ease", pointerEvents: "none" }}>
-              <g stroke="#7C3A12" strokeWidth="0.7" strokeOpacity="0.5">
-                <path d="M150 496 q3 -7 7 -1 q3 -7 7 0 q-1 6 -7 7 q-6 -1 -7 -6 Z" fill="#D97706" transform="rotate(-18 156 494)" />
-                <path d="M172 492 q3 -7 7 -1 q3 -7 7 0 q-1 6 -7 7 q-6 -1 -7 -6 Z" fill="#EA580C" transform="rotate(8 178 490)" />
-                <path d="M196 495 q3 -7 7 -1 q3 -7 7 0 q-1 6 -7 7 q-6 -1 -7 -6 Z" fill="#CA8A04" transform="rotate(22 202 493)" />
-                <path d="M216 498 q3 -6 6 -1 q3 -6 6 0 q-1 5 -6 6 q-5 -1 -6 -5 Z" fill="#C2410C" transform="rotate(-10 220 496)" />
-              </g>
+              {/* Autumn leaves — move with basket during intro drop */}
+              {currentSeasonKey === "autumn" && (
+                <g stroke="#7C3A12" strokeWidth="0.7" strokeOpacity="0.5" style={{ pointerEvents: "none" }}>
+                  <path d="M150 496 q3 -7 7 -1 q3 -7 7 0 q-1 6 -7 7 q-6 -1 -7 -6 Z" fill="#D97706" transform="rotate(-18 156 494)" />
+                  <path d="M172 492 q3 -7 7 -1 q3 -7 7 0 q-1 6 -7 7 q-6 -1 -7 -6 Z" fill="#EA580C" transform="rotate(8 178 490)" />
+                  <path d="M196 495 q3 -7 7 -1 q3 -7 7 0 q-1 6 -7 7 q-6 -1 -7 -6 Z" fill="#CA8A04" transform="rotate(22 202 493)" />
+                  <path d="M216 498 q3 -6 6 -1 q3 -6 6 0 q-1 5 -6 6 q-5 -1 -6 -5 Z" fill="#C2410C" transform="rotate(-10 220 496)" />
+                </g>
+              )}
             </g>
+            </g>
+            )}
 
-            {/* STARTLED BIRD */}
+            {/* STARTLED BIRD — flies in during intro, then perches on left post */}
             <g
               onClick={(e) => {
+                if (!introComplete) return;
                 e.stopPropagation();
                 shooBird();
               }}
-              onMouseEnter={() => setBirdChirp(true)}
-              onMouseLeave={() => setBirdChirp(false)}
+              onMouseEnter={() => introComplete && setBirdChirp(true)}
+              onMouseLeave={() => introComplete && setBirdChirp(false)}
               className={
-                birdPosition === "flying-to-right" ? "scared-bird-flight-right" :
-                birdPosition === "flying-to-left" ? "scared-bird-flight-left" :
-                birdPosition === "flying-away-right" ? "bird-fly-away-right" :
-                birdPosition === "flying-away-left" ? "bird-fly-away-left" : ""
+                introComplete ? (
+                  birdPosition === "flying-to-right" ? "scared-bird-flight-right" :
+                  birdPosition === "flying-to-left" ? "scared-bird-flight-left" :
+                  birdPosition === "flying-away-right" ? "bird-fly-away-right" :
+                  birdPosition === "flying-away-left" ? "bird-fly-away-left" : ""
+                ) : introBirdFlying ? "intro-bird-flight-left" : ""
               }
               style={{
-                cursor: "pointer",
-                opacity: birdGone || isNight ? 0 : 1,
-                pointerEvents: birdGone || isNight ? "none" : "auto",
-                transition: "opacity 1s ease",
-                transform: birdPosition === "left" ? "translate(70px, 122px) scale(1, 1)" :
-                           birdPosition === "right" ? "translate(970px, 122px) scale(-1, 1)" : undefined,
-                transformOrigin: "center"
+                cursor: introComplete ? "pointer" : "default",
+                opacity: (birdGone || isNight) ? 0 : (introComplete ? 1 : introBirdOpacity),
+                pointerEvents: birdGone || isNight || !introComplete ? "none" : "auto",
+                transition: introComplete ? "opacity 1s ease" : "none",
+                transform: introComplete
+                  ? (birdPosition === "left" ? `translate(${BIRD_PERCH_X}px, ${BIRD_PERCH_Y}px) scale(1, 1)` :
+                     birdPosition === "right" ? "translate(970px, 122px) scale(-1, 1)" : undefined)
+                  : undefined,
+                transformOrigin: "center",
               }}
             >
               <g transform="translate(-10, -10)">
@@ -1483,36 +1743,128 @@ export default function App() {
             </g>
           </svg>
 
+          {introActive && (
+            <div style={{ position: "absolute", top: 24, left: 24, zIndex: 14, display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={skipIntro}
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: 1.5,
+                  textTransform: "uppercase",
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: `1px solid ${P.ink}22`,
+                  background: `${P.cloth}CC`,
+                  color: P.ink,
+                  cursor: "pointer",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                Skip
+              </button>
+            </div>
+          )}
+          {!introActive && (
+            <div style={{ position: "absolute", top: 24, left: 24, zIndex: 14 }}>
+              <button
+                type="button"
+                onClick={replayIntro}
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: 1.5,
+                  textTransform: "uppercase",
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: `1px solid ${P.ink}22`,
+                  background: `${P.cloth}CC`,
+                  color: P.ink,
+                  cursor: "pointer",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                Replay
+              </button>
+            </div>
+          )}
+
           {/* Intro Title Typography */}
-          <div style={{
+          <div
+            style={{
             position: "absolute",
             top: "clamp(108px, 12vh, 140px)",
             left: "50%",
-            transform: "translateX(-50%)",
             maxWidth: 620,
             width: "90%",
             pointerEvents: "none",
             textAlign: "center",
             zIndex: 5,
             textShadow: titleLit ? "0 0 28px rgba(251,191,36,0.22)" : "none",
-            transition: "text-shadow 1.1s ease"
+            opacity: introComplete ? 1 : intro.heroOpacity,
+            transform: `translateX(-50%) translateY(${introComplete ? 0 : (1 - intro.heroOpacity) * 14}px)`,
           }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 10 }}>
+            <div
+              className={introComplete ? undefined : "intro-role-fade-up"}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 10 }}
+            >
               <span className="pulse-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: titleLit ? "#FCD34D" : P.accent, transition: "background 0.5s ease" }} />
               <span style={{ fontFamily: BODY, fontSize: 13, fontWeight: 500, letterSpacing: 2.5, textTransform: "uppercase", color: titleSubColor, opacity: 0.8, transition: "color 1.1s ease" }}>
                 Product & UX Designer
               </span>
             </div>
             <div style={{ fontFamily: HEADER, fontSize: "4rem", fontWeight: 400, color: titleColor, lineHeight: 1.05, letterSpacing: -0.5, transition: "color 1.1s ease" }}>
-              Hi, I'm Varna Das<span style={{ color: titleLit ? "#FCD34D" : P.accent, transition: "color 1.1s ease" }}>.</span><br />
-              <span style={{ fontSize: "1.0125rem", fontWeight: 400, fontFamily: BODY, display: "block", marginTop: 4, opacity: 0.82, lineHeight: 1.45, marginLeft: "auto", marginRight: "auto", maxWidth: 450, color: titleDescColor, transition: "color 1.1s ease" }}>
+              {introComplete || introProgress >= 0.24 ? (
+                <>Hi, I'm Varna Das<span style={{ color: titleLit ? "#FCD34D" : P.accent, transition: "color 1.1s ease" }}>.</span></>
+              ) : (
+                <span aria-label={NAME_TEXT}>
+                  {nameChars.map((char, i) => {
+                    const cp = nameCharProgress(introProgress, i, nameChars.length);
+                    const yOff = nameCharOffset(cp);
+                    return (
+                      <span
+                        key={`${char}-${i}`}
+                        style={{
+                          display: "inline-block",
+                          opacity: cp > 0.02 ? 1 : 0,
+                          transform: `translateY(${yOff}px)`,
+                          color: char === "." ? (titleLit ? "#FCD34D" : P.accent) : titleColor,
+                        }}
+                      >
+                        {char === " " ? "\u00A0" : char}
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+              <span
+                style={{
+                  fontSize: "1.0125rem",
+                  fontWeight: 400,
+                  fontFamily: BODY,
+                  display: "block",
+                  marginTop: 4,
+                  lineHeight: 1.45,
+                  marginLeft: "auto",
+                  marginRight: "auto",
+                  maxWidth: 450,
+                  color: titleDescColor,
+                  opacity: introComplete ? 0.82 : intro.descOpacity,
+                  transform: introComplete ? undefined : `translateY(${(1 - intro.descOpacity / 0.82) * 8}px)`,
+                  transition: "color 1.1s ease",
+                }}
+              >
                 {P.description}
               </span>
             </div>
           </div>
 
           {/* Vertical glassy season toggle (icon-only), floating top-right */}
-          <div style={{
+          <div
+            style={{
             position: "absolute",
             top: 24,
             right: 24,
@@ -1527,9 +1879,13 @@ export default function App() {
             border: `1px solid ${P.cloth}66`,
             boxShadow: `0 2px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 1px ${P.cloth}b3, inset 0 -1px 1px ${P.ink}0D`,
             zIndex: 12,
-            opacity: isNight && !lanternOn ? 0.58 : 1,
+            opacity: introComplete
+              ? (isNight && !lanternOn ? 0.58 : 1)
+              : intro.toggleOpacity * (isNight && !lanternOn ? 0.58 : 1),
+            pointerEvents: introComplete || intro.toggleOpacity > 0.5 ? "auto" : "none",
+            transform: introComplete ? "translateY(0)" : `translateY(${(1 - intro.toggleOpacity) * 10}px)`,
             filter: isNight && !lanternOn ? "brightness(0.88) saturate(0.85)" : "none",
-            transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease, filter 0.45s ease"
+            transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.85s ease, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1), filter 0.45s ease"
           }}>
             {Object.keys(SEASONS).map((key) => {
               const SeasonIcon = SEASONS[key].icon;
@@ -1880,13 +2236,31 @@ export default function App() {
           </div>
         )}
 
-        {/* Navigation Footer */}
-        <div style={{
+        {/* Ground color in footer strip until nav fades in on top */}
+        {!introComplete && footerProgress < 1 && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: FOOTER_HEIGHT,
+              background: footerStripBg,
+              zIndex: 15,
+              pointerEvents: "none",
+            }}
+          />
+        )}
+
+        {/* Navigation Footer — fades in over the ground; no slide */}
+        <div
+          style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          height: 56,
+          height: FOOTER_HEIGHT,
           boxSizing: "border-box",
           background: footerBg,
           padding: "0 40px",
@@ -1897,9 +2271,9 @@ export default function App() {
           zIndex: 20,
           borderTop: `1px solid ${nightFooterDim ? `${P.cloth}30` : nightFooterLit ? `${P.soft}50` : `${P.cloth}10`}`,
           boxShadow: nightFooterLit ? "inset 0 8px 28px rgba(251,191,36,0.18)" : "none",
-          opacity: nightFooterDim ? 0.52 : 1,
+          opacity: footerRevealOpacity,
+          pointerEvents: introComplete || footerProgress > 0.55 ? "auto" : "none",
           filter: nightFooterDim ? "saturate(0.85)" : "none",
-          transition: "opacity 1.1s ease, filter 1.1s ease, color 1.1s ease, border-color 1.1s ease, box-shadow 0.5s ease, background 0.5s ease"
         }}>
           <span style={{
             fontFamily: MONO,
@@ -1950,6 +2324,17 @@ export default function App() {
 
       {/* CSS ANIMATIONS */}
       <style>{`
+        .intro-active .sway-line.intro-rope-loading {
+          animation: none !important;
+        }
+        .intro-role-fade-up {
+          animation: introRoleFadeUp 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.9s both;
+        }
+        @keyframes introRoleFadeUp {
+          from { opacity: 0; transform: translateY(10px); letter-spacing: 0.18em; }
+          to   { opacity: 0.8; transform: translateY(0); letter-spacing: 0.16em; }
+        }
+
         @keyframes unifiedSway {
           0%, 100% { transform: rotate(-5deg); }
           50%      { transform: rotate(5deg); }
@@ -2189,6 +2574,9 @@ export default function App() {
         .drifting-snow-container.particle-winter-12 { animation: winterPath2 10s linear infinite; animation-delay: -1s; }
         .drifting-snow-container.particle-winter-13 { animation: winterPath3 11s linear infinite; animation-delay: -7s; }
 
+        .intro-bird-flight-left {
+          animation: birdFlyToLeft 1.8s cubic-bezier(0.25, 1, 0.5, 1) -450ms both;
+        }
         .scared-bird-flight-right {
           animation: birdFlyToRight 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
