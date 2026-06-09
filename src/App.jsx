@@ -1,10 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Sun,
-  Trash2,
   X,
-  Droplet,
-  Award,
   Leaf,
   Snowflake,
   Flower,
@@ -43,6 +40,7 @@ import {
   garmentHangPosition,
   basketHasImpacted,
   BASKET_IMPACT_PROGRESS,
+  isBasketClick,
   BIRD_FLY_TO_LEFT_MS,
   BIRD_INTRO_FLIGHT_WALL_MS,
   BIRD_PERCH_X,
@@ -171,12 +169,114 @@ const DESIGN_SYSTEMS_INFO = {
 };
 
 const INITIAL_PIECES = [
-  { id: 0, title: "PLAYER SAFETY", note: "Trust & moderation system design", fabric: "weave", hue: "#F6EEDD" },
-  { id: 1, title: "ROBLOX MATCHMAKING", note: "Grouping & queue mechanics", fabric: "dots", hue: "#F7E9D6" },
-  { id: 2, title: "OPENCLOUD", note: "Developer tools & console platform", fabric: "plain", hue: "#F4D9C2" },
-  { id: 3, title: "SERVICES FOR MATHWORKS", note: "Enterprise workspace layouts", fabric: "stripe", hue: "#FBF4E6" },
-  { id: 4, title: "ZORRO", note: "Confidential design ecosystem", fabric: "weave", hue: "#FBF4E6" },
+  {
+    id: 0,
+    title: "PLAYER SAFETY",
+    note: "Trust & moderation system design",
+    summary: "Designed trust and moderation flows that help players report issues quickly while keeping communities safe and accountable.",
+    fabric: "weave",
+    hue: "#F6EEDD",
+  },
+  {
+    id: 1,
+    title: "ROBLOX MATCHMAKING",
+    note: "Grouping & queue mechanics",
+    summary: "Reworked grouping and queue mechanics to get players into the right experiences faster, with fairer matches.",
+    fabric: "dots",
+    hue: "#F7E9D6",
+  },
+  {
+    id: 2,
+    title: "OPENCLOUD",
+    note: "Developer tools & console platform",
+    summary: "Shipped developer tools and console patterns that make complex cloud workflows feel clear, fast, and dependable.",
+    fabric: "plain",
+    hue: "#F4D9C2",
+  },
+  {
+    id: 3,
+    title: "SERVICES FOR MATHWORKS",
+    note: "Enterprise workspace layouts",
+    summary: "Built enterprise workspace layouts balancing dense technical data with a calm, navigable structure.",
+    fabric: "stripe",
+    hue: "#FBF4E6",
+  },
+  {
+    id: 4,
+    title: "ZORRO",
+    note: "Confidential design ecosystem",
+    summary: "Led a confidential product ecosystem spanning navigation, tokens, and high-fidelity workflows under NDA.",
+    fabric: "weave",
+    hue: "#FBF4E6",
+  },
 ];
+
+const ROPE_PIN_MIN = 108;
+const ROPE_PIN_MAX = 932;
+const GARMENT_SVG_WIDTH = 48;
+
+const FOCUS_MODE = {
+  spreadSlot: 14,
+  spreadBase: 6,
+  stagger: 26,
+  transitionMs: 620,
+  cardAnchorY: 72,
+  cardWidthFactor: 3.7,
+  cardWidthMin: 178,
+  cardWidthMax: 292,
+  clothLighten: 0.14,
+};
+
+function clampSpreadOffset(hangX, offset) {
+  const pinX = hangX + offset;
+  if (pinX < ROPE_PIN_MIN) return ROPE_PIN_MIN - hangX;
+  if (pinX > ROPE_PIN_MAX) return ROPE_PIN_MAX - hangX;
+  return offset;
+}
+
+function garmentFocusOffset(index, selectedIndex, hangXs) {
+  if (selectedIndex < 0 || index === selectedIndex) return 0;
+  const dist = index - selectedIndex;
+  const sign = dist < 0 ? -1 : 1;
+  const raw = sign * (Math.abs(dist) * FOCUS_MODE.spreadSlot + FOCUS_MODE.spreadBase);
+  return clampSpreadOffset(hangXs[index], raw);
+}
+
+function garmentFocusStagger(index, selectedIndex) {
+  if (selectedIndex < 0 || index === selectedIndex) return 0;
+  return Math.abs(index - selectedIndex) * FOCUS_MODE.stagger;
+}
+
+function spreadCloseDuration(pieceCount) {
+  return FOCUS_MODE.transitionMs + Math.max(0, pieceCount - 1) * FOCUS_MODE.stagger + 48;
+}
+
+function computeFocusCardPos(svg, focusedIndex, pieceCount) {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+
+  const playground = svg.parentElement;
+  if (!playground) return null;
+  const bounds = playground.getBoundingClientRect();
+
+  const scale = Math.abs(ctm.a);
+  const cardWidth = Math.min(
+    FOCUS_MODE.cardWidthMax,
+    Math.max(FOCUS_MODE.cardWidthMin, GARMENT_SVG_WIDTH * scale * FOCUS_MODE.cardWidthFactor)
+  );
+
+  const { x, y } = garmentHangPosition(focusedIndex, pieceCount);
+  const pt = svg.createSVGPoint();
+  pt.x = x;
+  pt.y = y + FOCUS_MODE.cardAnchorY;
+  const screen = pt.matrixTransform(ctm);
+
+  return {
+    x: screen.x - bounds.left,
+    y: screen.y - bounds.top,
+    width: cardWidth,
+  };
+}
 
 // Front-hill surface Y for spring poppies — matches the front hill SVG path
 function hillSurfaceY(x) {
@@ -193,8 +293,110 @@ function hillSurfaceY(x) {
   return mt * mt * y1 + 2 * mt * t * cy2 + t * t * y2;
 }
 
-// Map screen clicks to SVG user space (preserveAspectRatio="xMidYMax meet")
+const SUNFLOWER_HEAD_Y = -48;
+const SUNFLOWER_MIN_CLICK = 10;
+const SUNFLOWER_MAX_CLICK = 15;
+const SUNFLOWER_REPLACE_RADIUS = 20;
+
+function sunflowerPetalLayer(count, length, width, fill, stroke, rotOffset = 0) {
+  return Array.from({ length: count }, (_, i) => (
+    <ellipse
+      key={`${fill}-${i}`}
+      cx="0"
+      cy={-length * 0.62}
+      rx={width}
+      ry={length * 0.5}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth="0.28"
+      transform={`translate(0, ${SUNFLOWER_HEAD_Y}) rotate(${(360 / count) * i + rotOffset})`}
+    />
+  ));
+}
+
+function SpringSunflowerBloom() {
+  const seeds = Array.from({ length: 18 }, (_, i) => {
+    const angle = (i * 137.508 * Math.PI) / 180;
+    const radius = 0.85 + Math.sqrt(i + 1) * 0.85;
+    return {
+      cx: Math.cos(angle) * radius,
+      cy: SUNFLOWER_HEAD_Y + Math.sin(angle) * radius,
+      r: 0.35 + (i % 3) * 0.12,
+    };
+  });
+
+  return (
+    <g className="sunflower-bloom">
+      <path
+        d="M0 25 Q6 -5 0 -45"
+        stroke="#3A6346"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M0 -12 C-8 -10 -12 -5 -13 0 Q-6 -9 0 -12"
+        fill="#4A7C59"
+        stroke="#3A6346"
+        strokeWidth="0.5"
+      />
+      <path
+        d="M0 -24 C8 -22 12 -17 13 -11 Q6 -21 0 -24"
+        fill="#5A9468"
+        stroke="#3A6346"
+        strokeWidth="0.5"
+      />
+
+      <g className="sunflower-head">
+        {sunflowerPetalLayer(18, 17, 3.2, "#EAB308", "#CA8A04")}
+        {sunflowerPetalLayer(14, 14, 2.5, "#FACC15", "#EAB308", 11)}
+        {sunflowerPetalLayer(10, 10, 1.9, "#FDE68A", "#FACC15", 7)}
+
+        <circle cx="0" cy={SUNFLOWER_HEAD_Y} r="8.5" fill="#4E342E" />
+        <circle cx="0" cy={SUNFLOWER_HEAD_Y} r="7.2" fill="#5D4037" />
+        {seeds.map((seed, i) => (
+          <circle
+            key={`seed-${i}`}
+            cx={seed.cx}
+            cy={seed.cy}
+            r={seed.r}
+            fill={i % 2 === 0 ? "#3E2723" : "#2D1B14"}
+          />
+        ))}
+        <circle cx="0" cy={SUNFLOWER_HEAD_Y} r="2.2" fill="#6D4C41" opacity="0.4" />
+      </g>
+    </g>
+  );
+}
+
+function poppyHiddenBySunflower(flower, sunflower) {
+  if (!sunflower) return false;
+  return Math.hypot(flower.x - sunflower.x, flower.y - sunflower.y) < SUNFLOWER_REPLACE_RADIUS;
+}
+
+function shouldTriggerSunflower(clickCount) {
+  if (clickCount < SUNFLOWER_MIN_CLICK) return false;
+  if (clickCount >= SUNFLOWER_MAX_CLICK) return true;
+  return Math.random() < 1 / (SUNFLOWER_MAX_CLICK + 1 - clickCount);
+}
+
+// Night firefly taps — ground & hill bands only (not sky / clothesline)
+function isOnNightGround(svgX, svgY) {
+  if (svgY < 418 || svgY > 638) return false;
+  if (svgX < -300 || svgX > 1380) return false;
+  return true;
+}
+
+// Map screen clicks to SVG user space
 function clientPointToSvg(svg, clientX, clientY) {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if (ctm) {
+    const loc = pt.matrixTransform(ctm.inverse());
+    return { x: loc.x, y: loc.y };
+  }
   const vb = svg.viewBox.baseVal;
   const rect = svg.getBoundingClientRect();
   const scale = Math.min(rect.width / vb.width, rect.height / vb.height);
@@ -248,6 +450,60 @@ const FLANK_POPPIES = [
 ];
 
 const ALL_SPRING_POPPIES = [...PRE_PLANTED_POPPIES, ...FLANK_POPPIES];
+const PRE_PLANTED_POPPY_IDS = new Set(ALL_SPRING_POPPIES.map((f) => f.id));
+const MAX_USER_POPPIES = 80;
+
+const FIREFLY_DRIFT = { dxScale: 82, dyMin: 26, dyRange: 38 };
+
+function HillFirefly({ x, y, flightMs, driftX, driftY, wiggle1, wiggle2, blinkDelay, blinkMs }) {
+  return (
+    <g transform={`translate(${x}, ${y})`} style={{ pointerEvents: "none" }}>
+      <g
+        className="hill-firefly-flight"
+        style={{
+          "--dx": driftX,
+          "--dy": driftY,
+          "--w1": wiggle1,
+          "--w2": wiggle2,
+          "--flight-ms": `${flightMs}ms`,
+        }}
+      >
+        <g
+          className="hill-firefly-glow"
+          style={{
+            "--blink-delay": `${blinkDelay}s`,
+            "--blink-ms": `${blinkMs}ms`,
+          }}
+        >
+          <circle cx="0" cy="0" r="5.5" fill="#FDE047" opacity="0.42" filter="url(#fireflyGlow)" />
+          <circle cx="0" cy="0" r="1.8" fill="#FEF08A" opacity="0.95" />
+          <circle cx="0" cy="0" r="0.7" fill="#FFFBEB" />
+        </g>
+      </g>
+    </g>
+  );
+}
+
+function spawnFirefly(x, y, setFireflies) {
+  const interactionId = Date.now();
+  const flightMs = 4600 + Math.floor(Math.random() * 1800);
+  const newFirefly = {
+    id: interactionId,
+    x,
+    y,
+    flightMs,
+    driftX: (Math.random() - 0.5) * FIREFLY_DRIFT.dxScale,
+    driftY: -(FIREFLY_DRIFT.dyMin + Math.random() * FIREFLY_DRIFT.dyRange),
+    wiggle1: (Math.random() - 0.5) * 20,
+    wiggle2: (Math.random() - 0.5) * 18,
+    blinkDelay: Math.random() * 1.4,
+    blinkMs: 850 + Math.floor(Math.random() * 450),
+  };
+  setFireflies((prev) => [...prev, newFirefly]);
+  setTimeout(() => {
+    setFireflies((prev) => prev.filter((f) => f.id !== interactionId));
+  }, flightMs + 120);
+}
 
 const NIGHT_STARS = [...Array(34)].map((_, i) => {
   const h1 = Math.abs(Math.sin(i * 12.9898 + 78.233) * 43758.5453) % 1;
@@ -260,11 +516,113 @@ const NIGHT_STARS = [...Array(34)].map((_, i) => {
   };
 });
 
+const WINTER_SNOW_DRIFT_X = 200;
+const WINTER_SNOW_COUNT = 38;
+const WINTER_SNOW_LANE_COUNT = 15;
+const WINTER_SNOW_LANE_START = -80;
+const WINTER_SNOW_LANE_STEP = 92;
+
+function winterSnowStartX(index) {
+  const lane = index % WINTER_SNOW_LANE_COUNT;
+  const jitter = ((index * 53 + lane * 19) % 44) - 22;
+  return WINTER_SNOW_LANE_START + lane * WINTER_SNOW_LANE_STEP + jitter;
+}
+
+function birdSnowOrigin(position) {
+  if (position === "right") return { x: 964, y: 111 };
+  return { x: 74, y: 111 };
+}
+
+function BirdHeadSnowflakeGlyph({ variant }) {
+  const stroke = {
+    stroke: "#FFFFFF",
+    fill: "none",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    style: { filter: "drop-shadow(0 0 0.5px rgba(100,116,139,0.4))" },
+  };
+
+  switch (variant % 5) {
+    case 0:
+      return <path d="M-4 0 L4 0 M0 -4 L0 4 M-3 -3 L3 3 M-3 3 L3 -3" {...stroke} strokeWidth="1.5" />;
+    case 1:
+      return (
+        <path
+          d="M0 -5 L0 5 M-4.33 -2.5 L4.33 2.5 M-4.33 2.5 L4.33 -2.5 M-1.1 -4.1 L1.1 -2.9 M1.1 4.1 L-1.1 2.9"
+          {...stroke}
+          strokeWidth="1.25"
+        />
+      );
+    case 2:
+      return (
+        <path
+          d="M0 -5.5 L0 5.5 M-4.76 -2.75 L4.76 2.75 M-4.76 2.75 L4.76 -2.75 M-1.4 -4.2 L1.4 -2.2 M-1.4 4.2 L1.4 2.2"
+          {...stroke}
+          strokeWidth="1.15"
+        />
+      );
+    case 3:
+      return (
+        <path
+          d="M0 -4.2 L3.64 -2.1 L3.64 2.1 L0 4.2 L-3.64 2.1 L-3.64 -2.1 Z M0 -4.2 L0 4.2 M-3.64 -2.1 L3.64 2.1"
+          {...stroke}
+          strokeWidth="1.1"
+        />
+      );
+    default:
+      return (
+        <path
+          d="M0 -5 L0 5 M-4.33 -2.5 L4.33 2.5 M-4.33 2.5 L4.33 -2.5 M0 -4 L-1.1 -2.8 M0 -4 L1.1 -2.8 M0 4 L-1.1 2.8 M0 4 L1.1 2.8"
+          {...stroke}
+          strokeWidth="1.05"
+        />
+      );
+  }
+}
+
+const BIRD_HEAD_SNOWFLAKES = [
+  { x: 10, y: 2.2, delay: 0, drift: -2, rot: 0, scale: 0.44, variant: 0 },
+  { x: 6.8, y: 4.2, delay: 0.65, drift: -3, rot: -18, scale: 0.38, variant: 1 },
+  { x: 13.2, y: 3.6, delay: 1.3, drift: 2.5, rot: 14, scale: 0.36, variant: 2 },
+  { x: 8.2, y: 3.1, delay: 1.95, drift: -1.5, rot: -8, scale: 0.34, variant: 3 },
+  { x: 10, y: 5.5, delay: 2.6, drift: -1, rot: 22, scale: 0.32, variant: 4 },
+  { x: 11.8, y: 4.8, delay: 3.25, drift: 2, rot: -12, scale: 0.33, variant: 0 },
+  { x: 7.2, y: 2.4, delay: 3.9, drift: -2.5, rot: 10, scale: 0.31, variant: 1 },
+  { x: 14, y: 5, delay: 4.55, drift: 1.5, rot: -20, scale: 0.3, variant: 2 },
+  { x: 5.6, y: 5.1, delay: 5.2, drift: -2, rot: 16, scale: 0.3, variant: 3 },
+];
+
+function BirdHeadSnowflakes() {
+  return (
+    <g pointerEvents="none" className="bird-head-snowflakes">
+      {BIRD_HEAD_SNOWFLAKES.map((f, i) => (
+        <g
+          key={i}
+          className="bird-head-snowflake-land"
+          style={{
+            "--land-x": `${f.x}px`,
+            "--land-y": `${f.y}px`,
+            "--land-rot": `${f.rot}deg`,
+            "--land-scale": f.scale,
+            "--land-drift": `${f.drift}px`,
+            animationDelay: `${f.delay}s`,
+          }}
+        >
+          <BirdHeadSnowflakeGlyph variant={f.variant} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 export default function App() {
   const svgRef = useRef(null);
   const [pieces, setPieces] = useState(INITIAL_PIECES);
   const [hot, setHot] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [spreadLayoutHeld, setSpreadLayoutHeld] = useState(false);
+  const spreadCenterRef = useRef(-1);
+  const spreadCloseTimerRef = useRef(null);
   const [windStrength, setWindStrength] = useState(3.0);
   const [currentSeasonKey, setCurrentSeasonKey] = useState("summer");
 
@@ -280,9 +638,14 @@ export default function App() {
   const [meteor, setMeteor] = useState(null);
 
   const [bloomedFlowers, setBloomedFlowers] = useState(ALL_SPRING_POPPIES);
+  const [springSunflower, setSpringSunflower] = useState(null);
+  const springSunflowerRef = useRef(false);
+  const springGroundClickCountRef = useRef(0);
   const [rustledLeaves, setRustledLeaves] = useState([]);
   const [snowSplashes, setSnowSplashes] = useState([]);
-  const [shimmerSparks, setShimmerSparks] = useState([]);
+  const [birdSnowFall, setBirdSnowFall] = useState([]);
+  const [birdSnowLandingKey, setBirdSnowLandingKey] = useState(0);
+  const [fireflies, setFireflies] = useState([]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("NEW CASE STUDY");
@@ -302,6 +665,7 @@ export default function App() {
   const birdGoneRef = useRef(false);
   const introCompleteRef = useRef(false);
   const introBirdLaunchRef = useRef(null);
+  const groundTapLockRef = useRef(0);
   const [viewportWidth, setViewportWidth] = useState(
     () => (typeof window !== "undefined" ? window.innerWidth : 1200)
   );
@@ -403,7 +767,55 @@ export default function App() {
   const activeViewBox = `${sceneMinX} ${lerp(CAMERA_START_Y, sceneMinY, cameraT)} ${sceneWidth} ${sceneHeight}`;
   const footerProgress = introComplete ? 1 : intro.footerOpacity;
   const settleBlend = introComplete ? 1 : clamp((introProgress - 0.96) / 0.04, 0, 1);
-  const hangPositions = pieces.map((_, i) => garmentHangPosition(i, pieces.length));
+  const hangPositions = useMemo(
+    () => pieces.map((_, i) => garmentHangPosition(i, pieces.length)),
+    [pieces]
+  );
+  const hangXs = useMemo(() => hangPositions.map((h) => h.x), [hangPositions]);
+  const focusedIndex = selectedId !== null ? pieces.findIndex((p) => p.id === selectedId) : -1;
+  const projectFocusActive = introComplete && focusedIndex >= 0;
+
+  if (focusedIndex >= 0) {
+    spreadCenterRef.current = focusedIndex;
+  }
+  const spreadCenterIndex = spreadCenterRef.current;
+  const spreadLayoutActive = projectFocusActive || (spreadLayoutHeld && spreadCenterIndex >= 0);
+  const spreadClosing = spreadLayoutActive && !projectFocusActive;
+
+  useEffect(() => {
+    if (focusedIndex >= 0) {
+      if (spreadCloseTimerRef.current) {
+        clearTimeout(spreadCloseTimerRef.current);
+        spreadCloseTimerRef.current = null;
+      }
+      setSpreadLayoutHeld(true);
+      return undefined;
+    }
+
+    if (spreadCenterRef.current < 0) {
+      setSpreadLayoutHeld(false);
+      return undefined;
+    }
+
+    setSpreadLayoutHeld(true);
+    spreadCloseTimerRef.current = setTimeout(() => {
+      spreadCenterRef.current = -1;
+      setSpreadLayoutHeld(false);
+      spreadCloseTimerRef.current = null;
+    }, spreadCloseDuration(pieces.length));
+
+    return () => {
+      if (spreadCloseTimerRef.current) {
+        clearTimeout(spreadCloseTimerRef.current);
+        spreadCloseTimerRef.current = null;
+      }
+    };
+  }, [focusedIndex, pieces.length]);
+
+  const focusCardPos = useMemo(() => {
+    if (!projectFocusActive || !svgRef.current || focusedIndex < 0) return null;
+    return computeFocusCardPos(svgRef.current, focusedIndex, pieces.length);
+  }, [projectFocusActive, focusedIndex, pieces.length, activeViewBox, viewportWidth]);
   const ropeCtrl = introComplete
     ? { cx: 520, cy: 196 }
     : ropeBezierControl(introProgress, pieces.length, hangPositions.map((h) => h.x), intro.ropeDraw >= 0.98);
@@ -415,6 +827,20 @@ export default function App() {
   const nameChars = NAME_TEXT.split("");
   const introBirdFlying = !introComplete && basketHasImpacted(introProgress);
   const introBirdOpacity = introComplete ? 1 : (introBirdFlying ? 1 : 0);
+  const showBirdSnowCap =
+    isWinter
+    && introComplete
+    && !birdGone
+    && !isBirdFlying
+    && (birdPosition === "left" || birdPosition === "right");
+  const prevShowBirdSnowRef = useRef(false);
+
+  useEffect(() => {
+    if (showBirdSnowCap && !prevShowBirdSnowRef.current) {
+      setBirdSnowLandingKey((k) => k + 1);
+    }
+    prevShowBirdSnowRef.current = showBirdSnowCap;
+  }, [showBirdSnowCap]);
 
   useEffect(() => {
     const l = document.createElement("link");
@@ -461,6 +887,32 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [currentSeasonKey]);
 
+  useEffect(() => {
+    if (currentSeasonKey !== "night") {
+      setFireflies([]);
+    }
+    if (currentSeasonKey !== "winter") {
+      setBirdSnowFall([]);
+    }
+  }, [currentSeasonKey]);
+
+  const spawnBirdSnowFall = (position) => {
+    if (position !== "left" && position !== "right") return;
+    const origin = birdSnowOrigin(position);
+    const flakes = Array.from({ length: 12 }).map((_, idx) => ({
+      id: `bird-snow-${Date.now()}-${idx}`,
+      x: origin.x + (Math.random() * 12 - 6),
+      y: origin.y + (Math.random() * 5 - 2),
+      vx: (Math.random() * 24 - 12) + (position === "right" ? -8 : 6),
+      vy: 40 + Math.random() * 35,
+      r: 2.4 + Math.random() * 2.2,
+    }));
+    setBirdSnowFall((prev) => [...prev, ...flakes]);
+    setTimeout(() => {
+      setBirdSnowFall((prev) => prev.filter((f) => !flakes.some((sf) => sf.id === f.id)));
+    }, 1300);
+  };
+
   const resetToDefault = () => {
     setPieces(INITIAL_PIECES);
     setWindStrength(3.0);
@@ -472,19 +924,27 @@ export default function App() {
     setIsBirdFlying(false);
     setBirdGone(false);
     setBloomedFlowers(ALL_SPRING_POPPIES);
+    springSunflowerRef.current = false;
+    springGroundClickCountRef.current = 0;
+    setSpringSunflower(null);
     setRustledLeaves([]);
     setSnowSplashes([]);
-    setShimmerSparks([]);
+    setBirdSnowFall([]);
+    setFireflies([]);
   };
 
   const triggerBirdStartle = () => {
     if (!introCompleteRef.current || isBirdFlying || birdGone || birdPosition.startsWith("flying")) return;
 
+    const startPos = birdPosition;
+    if (isWinter && (startPos === "left" || startPos === "right")) {
+      spawnBirdSnowFall(startPos);
+    }
+
     setIsBirdFlying(true);
     setBirdChirp(true);
     setTimeout(() => setBirdChirp(false), 1500);
 
-    const startPos = birdPosition;
     const nextPos = startPos === "left" ? "right" : "left";
     const flightDirection = startPos === "left" ? "flying-to-right" : "flying-to-left";
 
@@ -503,7 +963,11 @@ export default function App() {
     playChirpSound();
     setBirdChirp(true);
     setTimeout(() => setBirdChirp(false), 1200);
-    const flightDirection = birdPosition === "left" ? "flying-away-right" : "flying-away-left";
+    const startPos = birdPosition;
+    if (isWinter && (startPos === "left" || startPos === "right")) {
+      spawnBirdSnowFall(startPos);
+    }
+    const flightDirection = startPos === "left" ? "flying-away-right" : "flying-away-left";
     setIsBirdFlying(true);
     setBirdPosition(flightDirection);
     setTimeout(() => {
@@ -787,13 +1251,46 @@ export default function App() {
     }, 2800);
   };
 
+  const handleNightHillPointer = (e) => {
+    if (!svgRef.current || currentSeasonKey !== "night" || !introComplete) return;
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - groundTapLockRef.current < 350) return;
+    groundTapLockRef.current = now;
+
+    const { x, y } = clientPointToSvg(svgRef.current, e.clientX, e.clientY);
+    if (!isOnNightGround(x, y)) return;
+
+    if (selectedId !== null) {
+      setSelectedId(null);
+      setHot(null);
+    }
+    spawnFirefly(x, y, setFireflies);
+  };
+
+  const handleBasketClick = (e) => {
+    if (!introComplete) return;
+    e.stopPropagation();
+  };
+
   const handleGroundInteraction = (e) => {
     if (!svgRef.current) return;
-    const svg = svgRef.current;
+    const now = Date.now();
+    if (now - groundTapLockRef.current < 350) return;
+    groundTapLockRef.current = now;
 
+    const svg = svgRef.current;
     const { x, y } = clientPointToSvg(svg, e.clientX, e.clientY);
 
+    if (selectedId !== null) {
+      setSelectedId(null);
+      setHot(null);
+      return;
+    }
+
     if (y > 380) {
+      if (showBasket && isBasketClick(x, y)) return;
+
       const interactionId = Date.now();
 
       if (currentSeasonKey === "spring") {
@@ -801,12 +1298,28 @@ export default function App() {
         const surfaceY = hillSurfaceY(flowerX);
         if (y < surfaceY - 40 || y > 638) return;
         const flowerY = y - (6 + Math.random() * 4);
-        const newFlower = { id: interactionId, x: flowerX, y: flowerY };
-        setBloomedFlowers(prev => {
-          const list = [...prev, newFlower];
-          if (list.length > 35) list.shift();
-          return list;
-        });
+        let triggersSunflower = false;
+
+        if (!springSunflowerRef.current) {
+          springGroundClickCountRef.current += 1;
+          triggersSunflower = shouldTriggerSunflower(springGroundClickCountRef.current);
+        }
+
+        if (triggersSunflower) {
+          springSunflowerRef.current = true;
+          setSpringSunflower({ id: interactionId, x: flowerX, y: flowerY });
+        } else {
+          const newFlower = { id: interactionId, x: flowerX, y: flowerY };
+          setBloomedFlowers((prev) => {
+            let list = [...prev, newFlower];
+            while (list.filter((f) => !PRE_PLANTED_POPPY_IDS.has(f.id)).length > MAX_USER_POPPIES) {
+              const oldestUserIdx = list.findIndex((f) => !PRE_PLANTED_POPPY_IDS.has(f.id));
+              if (oldestUserIdx === -1) break;
+              list = [...list.slice(0, oldestUserIdx), ...list.slice(oldestUserIdx + 1)];
+            }
+            return list;
+          });
+        }
       } else if (currentSeasonKey === "autumn") {
         const rustled = Array.from({ length: 4 }).map((_, idx) => ({
           id: `${interactionId}-${idx}`,
@@ -832,12 +1345,6 @@ export default function App() {
         setTimeout(() => {
           setSnowSplashes(prev => prev.filter(s => !splashes.includes(s)));
         }, 1500);
-      } else if (currentSeasonKey === "summer") {
-        const spark = { id: interactionId, x, y };
-        setShimmerSparks(prev => [...prev, spark]);
-        setTimeout(() => {
-          setShimmerSparks(prev => prev.filter(s => s.id !== interactionId));
-        }, 1200);
       }
     }
   };
@@ -861,7 +1368,10 @@ export default function App() {
     : footerProgress;
 
   const renderSeasonalParticles = () => {
-    const count = currentSeasonKey === "night" ? 34 : 14;
+    const count =
+      currentSeasonKey === "night" ? 34
+      : currentSeasonKey === "winter" ? WINTER_SNOW_COUNT
+      : 14;
     return [...Array(count)].map((_, i) => {
       const delay = i * -1.8;
       const duration = 12 / windStrength + (i % 4);
@@ -902,8 +1412,19 @@ export default function App() {
         );
       }
       if (currentSeasonKey === "winter") {
+        const startX = winterSnowStartX(i);
         return (
-          <g key={i} className={`drifting-snow-container particle-winter-${i}`} style={style}>
+          <g
+            key={i}
+            className="drifting-snow-container"
+            style={{
+              "--sx": `${startX}px`,
+              "--drift-x": `${WINTER_SNOW_DRIFT_X}px`,
+              animationDuration: `${6.5 + (i % 6) * 0.55}s`,
+              animationDelay: `${-((i * 1.35) + (i % 7) * 1.1)}s`,
+              transformOrigin: "center",
+            }}
+          >
             <path d="M-4 0 L4 0 M0 -4 L0 4 M-3 -3 L3 3 M-3 3 L3 -3" stroke="#FFFFFF" strokeWidth="1.6" opacity="1" style={{ filter: "drop-shadow(0 0 1px rgba(100,116,139,0.45))" }} />
           </g>
         );
@@ -1020,8 +1541,8 @@ export default function App() {
               <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
                 <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor={P.ink} floodOpacity="0.12" />
               </filter>
-              <filter id="dustBlur" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="2.8" />
+              <filter id="fireflyGlow" x="-200%" y="-200%" width="500%" height="500%">
+                <feGaussianBlur stdDeviation="1.6" />
               </filter>
               <radialGradient id="lanternLight" cx="50%" cy="48%" r="50%">
                 <stop offset="0%" stopColor="#FFF9E6" stopOpacity="0.85" />
@@ -1176,26 +1697,27 @@ export default function App() {
             {/* Drifting Clouds — SVG motion keeps them reliably in front of the moon */}
             <g
               fill={isNight ? (lanternOn ? "#5C6688" : "#7A84A8") : "#FFFFFF"}
+              className={introComplete || intro.cloudReveal > 0.02 ? "clouds-revealed" : ""}
               opacity={
                 introComplete
                   ? (isNight ? (lanternOn ? 0.42 : 0.58) : 0.88)
-                  : 0.92 * intro.atmosphere * (isNight ? (lanternOn ? 0.42 : 0.58) : 0.88)
+                  : 0.92 * intro.cloudReveal * (isNight ? (lanternOn ? 0.42 : 0.58) : 0.88)
               }
               style={{ transition: introActive ? "none" : "opacity 0.45s ease, fill 0.45s ease" }}
             >
-              <g>
+              <g className="cloud-drift cloud-drift-a">
                 <animateTransform attributeName="transform" type="translate" from="-300 0" to="1420 0" dur="72s" repeatCount="indefinite" />
                 <ellipse cx="0" cy="48" rx="50" ry="17" />
                 <ellipse cx="-44" cy="54" rx="34" ry="13" />
                 <ellipse cx="42" cy="55" rx="36" ry="12" />
               </g>
-              <g>
+              <g className="cloud-drift cloud-drift-b">
                 <animateTransform attributeName="transform" type="translate" from="-300 0" to="1420 0" dur="72s" begin="-24s" repeatCount="indefinite" />
                 <ellipse cx="0" cy="48" rx="46" ry="16" />
                 <ellipse cx="-40" cy="54" rx="32" ry="12" />
                 <ellipse cx="38" cy="55" rx="34" ry="11" />
               </g>
-              <g>
+              <g className="cloud-drift cloud-drift-c">
                 <animateTransform attributeName="transform" type="translate" from="-300 0" to="1420 0" dur="72s" begin="-48s" repeatCount="indefinite" />
                 <ellipse cx="0" cy="48" rx="44" ry="15" />
                 <ellipse cx="-38" cy="54" rx="30" ry="11" />
@@ -1253,6 +1775,19 @@ export default function App() {
               </g>
 
             </g>
+
+            {/* Night hill tap target — ground & dunes only, not sky */}
+            {currentSeasonKey === "night" && introComplete && (
+              <rect
+                x={sceneMinX}
+                y={418}
+                width={sceneWidth}
+                height={220}
+                fill="transparent"
+                style={{ cursor: "pointer" }}
+                onPointerDown={handleNightHillPointer}
+              />
+            )}
 
             {/* Clothesline posts */}
             <g
@@ -1392,14 +1927,29 @@ export default function App() {
               </g>
 
             {/* PORTFOLIO CASE STUDY GARMENTS */}
-            {pieces.map((pc, i) => {
+            {pieces.map((_, i) => i).map((i) => {
+              const pc = pieces[i];
               const { x, y } = hangPositions[i];
               const isHovered = hot === pc.id;
               const isSelected = selectedId === pc.id;
-              const isHighlit = isHovered || isSelected;
+              const isSpreadAnchor = projectFocusActive && i === spreadCenterIndex;
+              const focusDx = projectFocusActive
+                ? garmentFocusOffset(i, spreadCenterIndex, hangXs)
+                : 0;
+              const focusDelay = projectFocusActive
+                ? garmentFocusStagger(i, spreadCenterIndex)
+                : 0;
+              const focusTransitionMs = spreadClosing
+                ? FOCUS_MODE.transitionMs + 80
+                : FOCUS_MODE.transitionMs;
+              const showGarmentLabel = isHovered || (projectFocusActive && isSelected);
+              const isHighlit = projectFocusActive ? isSelected : (isHovered || isSelected);
 
               const gLocal = introComplete ? 1 : garmentLocal(introProgress, i, pieces.length);
               const showPiece = introComplete || gLocal > 0;
+              const pieceOpacity = showPiece
+                ? Math.min(1, introComplete ? 1 : gLocal / 0.06)
+                : 0;
               const fallY = introComplete ? 0 : (
                 garmentFallOffset(gLocal)
                 + middlePieceSwingY(gLocal, i)
@@ -1422,23 +1972,22 @@ export default function App() {
               };
 
               return (
-                <g key={pc.id}
-                  className={`piece-wrapper ${isHighlit ? "lift" : ""}`}
-                  opacity={showPiece ? Math.min(1, introComplete ? 1 : gLocal / 0.06) : 0}
-                  style={{ animationDelay: `${i * -0.4}s` }}
-                  onMouseEnter={() => introComplete && setHot(pc.id)}
-                  onMouseLeave={() => introComplete && setHot(null)}
-                  onClick={(e) => {
-                    if (!introComplete) return;
-                    e.stopPropagation();
-                    setSelectedId(pc.id);
-                  }}
-                >
+                <g key={pc.id} className={`piece-wrapper ${introComplete ? "scene-interactive" : ""}`} opacity={pieceOpacity}>
+                  <g
+                    className={`piece-spread-offset${isSpreadAnchor ? " piece-spread-offset--anchor" : ""}`}
+                    style={{
+                      "--focus-x": `${focusDx}px`,
+                      "--focus-delay": `${focusDelay}ms`,
+                      "--focus-transition": `${focusTransitionMs}ms`,
+                    }}
+                  >
+                  <g className="piece-flutter" style={{ animationDelay: `${i * -0.4}s`, transformOrigin: `${x}px ${y}px` }}>
                   <g transform={`translate(0 ${fallY})`}>
                   <g transform={`rotate(${pieceRot} ${x} ${y + GARMENT_ROT_PIVOT_Y})`}>
                   <g
                     opacity={pinS > 0.01 ? 1 : 0}
                     transform={`translate(${x} ${y}) scale(${Math.max(pinS, 0.001)}) translate(${-x} ${-y})`}
+                    style={{ pointerEvents: "none" }}
                   >
                     <g>
                       <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="#C68A4E" />
@@ -1453,25 +2002,68 @@ export default function App() {
                   </g>
 
                   <g style={introComplete ? animationStyle : { transformOrigin: `${x}px ${y}px` }} className={introComplete ? "cloth-body" : undefined}>
-                    {clothShape(pc, x, y, isHighlit, P, newType, currentSeasonKey, lampWarmth)}
-                    {isHighlit && (() => {
+                    <rect
+                      x={x - 42}
+                      y={y - 68}
+                      width={84}
+                      height={240}
+                      fill="transparent"
+                      style={{ cursor: introComplete ? "pointer" : "default" }}
+                      onPointerEnter={() => {
+                        if (!introComplete || projectFocusActive) return;
+                        setHot(pc.id);
+                      }}
+                      onPointerLeave={() => {
+                        if (!introComplete) return;
+                        if (selectedId !== pc.id) setHot(null);
+                      }}
+                      onClick={(e) => {
+                        if (!introComplete) return;
+                        e.stopPropagation();
+                        if (selectedId === pc.id) {
+                          setSelectedId(null);
+                          return;
+                        }
+                        setHot(pc.id);
+                        setSelectedId(pc.id);
+                      }}
+                    />
+                    <g pointerEvents="none">
+                    {clothShape(pc, x, y, isHighlit, P, newType, currentSeasonKey, lampWarmth, projectFocusActive && !isSelected)}
+                    {showGarmentLabel && (() => {
                       const labelW = Math.max(104, pc.title.length * 7.2 + 24);
-                      const tooltipBg = isNight
-                        ? (lanternOn ? P.accent : "#F0C53A")
-                        : P.accent;
-                      const tooltipText = isNight
-                        ? (lanternOn ? "#1B2247" : P.cloth)
-                        : P.cloth;
+                      const pillBg = isNight ? (lanternOn ? P.accent : "#F0C53A") : P.accent;
+                      const labelText = isNight ? (lanternOn ? "#1B2247" : P.cloth) : P.cloth;
                       return (
-                      <g>
-                        <rect x={x - labelW / 2} y={y - 42} width={labelW} height="25" rx="5" fill={tooltipBg} stroke="none" style={{ transition: "fill 1.1s ease" }} />
-                        <text x={x} y={y - 26} fontSize="9.5" textAnchor="middle" fill={tooltipText} stroke="none" style={{ fontFamily: MONO, fontWeight: 600, letterSpacing: 1.2, transition: "fill 1.1s ease" }}>
-                          {pc.title}
-                        </text>
-                        <path d={`M${x} ${y - 17} v9`} stroke={tooltipBg} strokeWidth="1.8" style={{ transition: "stroke 1.1s ease" }} />
-                      </g>
+                        <g className="garment-label">
+                          <rect
+                            x={x - labelW / 2}
+                            y={y - 42}
+                            width={labelW}
+                            height={25}
+                            rx={5}
+                            fill={pillBg}
+                            stroke="none"
+                            style={{ transition: "fill 0.25s ease" }}
+                          />
+                          <text
+                            x={x}
+                            y={y - 26}
+                            fontSize={9.5}
+                            textAnchor="middle"
+                            fill={labelText}
+                            stroke="none"
+                            style={{ fontFamily: MONO, fontWeight: 600, letterSpacing: 1.2, transition: "fill 0.25s ease" }}
+                          >
+                            {pc.title}
+                          </text>
+                          <path d={`M${x} ${y - 17} v9`} stroke={pillBg} strokeWidth="1.8" style={{ transition: "stroke 0.25s ease" }} />
+                        </g>
                       );
                     })()}
+                    </g>
+                  </g>
+                  </g>
                   </g>
                   </g>
                   </g>
@@ -1511,17 +2103,19 @@ export default function App() {
               />
             ))}
 
-            {shimmerSparks.map((s) => (
+            {birdSnowFall.map((f) => (
               <circle
-                key={s.id}
-                cx={s.x}
-                cy={s.y}
-                r="1"
-                fill="none"
-                stroke="#D65B3E"
-                strokeWidth="1.5"
-                className="heat-shimmer-ring"
-                style={{ pointerEvents: "none" }}
+                key={f.id}
+                cx={f.x}
+                cy={f.y}
+                r={f.r}
+                fill="#FFFFFF"
+                className="bird-snow-drop"
+                style={{
+                  pointerEvents: "none",
+                  "--vx": `${f.vx}px`,
+                  "--vy": `${f.vy}px`,
+                }}
               />
             ))}
 
@@ -1532,7 +2126,7 @@ export default function App() {
               fill="none"
               opacity={introComplete ? 0.55 : intro.ground * 0.55}
               strokeLinecap="round"
-              style={{ transition: "stroke 1s ease" }}
+              style={{ transition: "stroke 1s ease", pointerEvents: "none" }}
             >
               {[...Array(26)].map((_, i) => {
                 const gx = 30 + i * 39;
@@ -1550,27 +2144,6 @@ export default function App() {
                 );
               })}
             </g>
-
-            {/* Spring poppies — painted above hills & garments so stems stay visible */}
-            {currentSeasonKey === "spring" && (
-              <g style={{ transition: "all 1s ease", pointerEvents: "none" }}>
-                {bloomedFlowers
-                  .filter((f) => f.x >= sceneMinX + poppyInset && f.x <= sceneMaxX - poppyInset)
-                  .map((f) => (
-                  <g key={f.id} transform={`translate(${f.x}, ${f.y})`}>
-                    <g className="poppy-bloom">
-                      <path d="M0 0 Q3 14 0 25" stroke="#3A6346" strokeWidth="1.6" fill="none" />
-                      <circle cx="-5" cy="-3" r="6" fill="#F43F5E" />
-                      <circle cx="5" cy="-3" r="6" fill="#F43F5E" />
-                      <circle cx="0" cy="5" r="6" fill="#E11D48" />
-                      <circle cx="0" cy="-6" r="6" fill="#E11D48" />
-                      <circle cx="0" cy="0" r="3.2" fill="#111827" />
-                      <circle cx="0" cy="0" r="1.5" fill="#FBBF24" />
-                    </g>
-                  </g>
-                ))}
-              </g>
-            )}
 
             {/* Basket landing dust — in front of ground, around basket base (exact spec) */}
             {intro.dustVisible && (
@@ -1599,6 +2172,8 @@ export default function App() {
             {showBasket && (
             <g
               opacity={basketOpacity}
+              onClick={handleBasketClick}
+              style={{ cursor: introComplete ? "pointer" : "default" }}
               transform={
                 introComplete
                   ? undefined
@@ -1645,6 +2220,33 @@ export default function App() {
             </g>
             )}
 
+            {/* Spring flowers — in front of basket */}
+            {currentSeasonKey === "spring" && (
+              <g style={{ transition: "all 1s ease", pointerEvents: "none" }}>
+                {bloomedFlowers
+                  .filter((f) => f.x >= sceneMinX + poppyInset && f.x <= sceneMaxX - poppyInset)
+                  .filter((f) => !poppyHiddenBySunflower(f, springSunflower))
+                  .map((f) => (
+                  <g key={f.id} transform={`translate(${f.x}, ${f.y})`}>
+                    <g className="poppy-bloom">
+                      <path d="M0 0 Q3 14 0 25" stroke="#3A6346" strokeWidth="1.6" fill="none" />
+                      <circle cx="-5" cy="-3" r="6" fill="#F43F5E" />
+                      <circle cx="5" cy="-3" r="6" fill="#F43F5E" />
+                      <circle cx="0" cy="5" r="6" fill="#E11D48" />
+                      <circle cx="0" cy="-6" r="6" fill="#E11D48" />
+                      <circle cx="0" cy="0" r="3.2" fill="#111827" />
+                      <circle cx="0" cy="0" r="1.5" fill="#FBBF24" />
+                    </g>
+                  </g>
+                ))}
+                {springSunflower && springSunflower.x >= sceneMinX + poppyInset && springSunflower.x <= sceneMaxX - poppyInset && (
+                  <g transform={`translate(${springSunflower.x}, ${springSunflower.y})`}>
+                    <SpringSunflowerBloom />
+                  </g>
+                )}
+              </g>
+            )}
+
             {/* STARTLED BIRD — flies in during intro, then perches on left post */}
             <g
               onClick={(e) => {
@@ -1680,6 +2282,9 @@ export default function App() {
                 <polygon points="16,8 20,10 16,12" fill="#3A2A22" />
                 <path d="M4 11 L1 15 L5 13 Z" fill={P.accent} />
                 <circle cx="13" cy="8" r="1.2" fill={P.cloth} />
+                {showBirdSnowCap && birdSnowLandingKey > 0 && (
+                  <BirdHeadSnowflakes key={birdSnowLandingKey} />
+                )}
               </g>
 
               {birdChirp && !isBirdFlying && (
@@ -1741,7 +2346,145 @@ export default function App() {
                 strokeLinecap="round"
               />
             </g>
+
+            {/* Night fireflies — float above the hills, then fade out */}
+            {currentSeasonKey === "night" && (
+              <g style={{ pointerEvents: "none" }}>
+                {fireflies.map((f) => (
+                  <HillFirefly
+                    key={f.id}
+                    x={f.x}
+                    y={f.y}
+                    flightMs={f.flightMs}
+                    driftX={f.driftX}
+                    driftY={f.driftY}
+                    wiggle1={f.wiggle1}
+                    wiggle2={f.wiggle2}
+                    blinkDelay={f.blinkDelay}
+                    blinkMs={f.blinkMs}
+                  />
+                ))}
+              </g>
+            )}
           </svg>
+
+          {projectFocusActive && focusCardPos && (() => {
+            const item = pieces[focusedIndex];
+            if (!item) return null;
+            const summary = item.summary || item.note;
+            const cardW = focusCardPos.width || 180;
+            const titleSize = Math.max(9.5, cardW * 0.048) + 1;
+            const bodySize = Math.max(11.5, cardW * 0.058) + 1;
+            const btnSize = Math.max(8.5, cardW * 0.038) + 1;
+            const tagSwaySec = windStrength > 0
+              ? (9 + (focusedIndex % 3) * 1.4) / windStrength
+              : 5;
+
+            const closeCard = () => {
+              setSelectedId(null);
+              setHot(null);
+            };
+
+            const cardBg = isNight && lanternOn ? "#F5F0E6" : P.cloth;
+            const cardInk = isNight && lanternOn ? "#1B2247" : P.ink;
+            const cardBodyInk = isNight && lanternOn ? "#1B2247CC" : `${P.ink}CC`;
+            const cardBtnBg = isNight && lanternOn ? "#1B2247" : P.ink;
+            const cardBtnInk = isNight && lanternOn ? "#F5F0E6" : P.cloth;
+            const cardCloseBg = isNight && lanternOn ? "#EDE6CF" : (P.clothTint || P.cloth);
+
+            return (
+              <div
+                key={`focus-card-${item.id}`}
+                className="project-focus-card project-focus-card--compact"
+                style={{
+                  position: "absolute",
+                  left: focusCardPos.x,
+                  top: focusCardPos.y,
+                  width: cardW,
+                  zIndex: 15,
+                  pointerEvents: "auto",
+                  "--tag-sway-duration": `${tagSwaySec}s`,
+                  "--tag-sway-delay": `${focusedIndex * -0.7}s`,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="project-focus-card-sway">
+                  <div
+                    className="project-focus-card-inner"
+                    style={{
+                      background: cardBg,
+                      boxShadow: isNight && lanternOn
+                        ? `0 10px 28px #00000040, 0 0 24px #FBBF2420, 0 2px 6px #00000018`
+                        : `0 10px 28px ${P.ink}14, 0 2px 6px ${P.ink}0A`,
+                      transition: "background 0.45s ease, box-shadow 0.45s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
+                      <span style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: P.accent,
+                        flexShrink: 0,
+                      }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontFamily: MONO,
+                        fontSize: titleSize,
+                        fontWeight: 600,
+                        letterSpacing: 0.85,
+                        color: cardInk,
+                        lineHeight: 1.2,
+                        transition: "color 0.45s ease",
+                      }}>
+                        {item.title}
+                      </h3>
+                    </div>
+                    <p style={{
+                      margin: "0 0 10px",
+                      fontFamily: BODY,
+                      fontSize: bodySize,
+                      lineHeight: 1.45,
+                      color: cardBodyInk,
+                      transition: "color 0.45s ease",
+                    }}>
+                      {summary}
+                    </p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <a
+                        href="#"
+                        onClick={(e) => e.preventDefault()}
+                        className="project-focus-btn project-focus-btn-primary"
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: btnSize,
+                          padding: "6px 11px",
+                          background: cardBtnBg,
+                          color: cardBtnInk,
+                          transition: "background 0.45s ease, color 0.45s ease",
+                        }}
+                      >
+                        VIEW PROJECT →
+                      </a>
+                      <button
+                        type="button"
+                        onClick={closeCard}
+                        className="project-focus-btn project-focus-close"
+                        aria-label="Close project card"
+                        style={{
+                          background: cardCloseBg,
+                          color: cardInk,
+                          transition: "background 0.45s ease, color 0.45s ease",
+                        }}
+                      >
+                        <X size={14} strokeWidth={2.25} aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {introActive && (
             <div style={{ position: "absolute", top: 24, left: 24, zIndex: 14, display: "flex", gap: 8 }}>
@@ -1937,115 +2680,6 @@ export default function App() {
             })}
           </div>
         </div>
-
-        {/* Selected Project Case Inspector */}
-        {selectedId !== null && (
-          <div style={{
-            position: "absolute",
-            top: 24,
-            right: isAdding ? 330 : 32,
-            bottom: 72,
-            width: 320,
-            background: P.cloth,
-            borderRadius: 20,
-            padding: 24,
-            boxShadow: "0 15px 40px rgba(0,0,0,0.15)",
-            border: `1.5px solid ${P.ink}20`,
-            zIndex: 15,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            animation: "slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-            transition: "all 0.5s ease"
-          }}>
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: P.accent }}>CASE INSPECTOR</span>
-                <button
-                  onClick={() => setSelectedId(null)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: P.ink }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {pieces.find(p => p.id === selectedId) ? (
-                (() => {
-                  const item = pieces.find(p => p.id === selectedId);
-                  const sysInfo = DESIGN_SYSTEMS_INFO[item.fabric] || { label: "Design Artifact", desc: "Interactive UX design framework built at absolute fidelity.", care: "Maintain absolute clarity and layout standards." };
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      <div>
-                        <h3 style={{ fontFamily: DISPLAY, fontSize: 24, fontWeight: 700, margin: 0, lineHeight: 1.15 }}>{item.title}</h3>
-                        <span style={{ fontFamily: MONO, fontSize: 12, opacity: 0.7, display: "block", marginTop: 4 }}>{item.note}</span>
-                      </div>
-
-                      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 4 }}>
-                        <div style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 12,
-                          background: item.hue,
-                          border: `1.5px solid ${P.ink}`,
-                          position: "relative",
-                          overflow: "hidden"
-                        }}>
-                          {item.fabric === "dots" && <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle, #E11D48 15%, transparent 16%)", backgroundSize: "8px 8px" }} />}
-                          {item.fabric === "stripe" && <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(15,23,42,0.1) 4px, rgba(15,23,42,0.1) 8px)" }} />}
-                          {item.fabric === "weave" && <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px), repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px)" }} />}
-                        </div>
-                        <div>
-                          <span style={{ display: "block", fontFamily: MONO, fontSize: 12, fontWeight: 600 }}>{sysInfo.label}</span>
-                          <span style={{ display: "block", fontFamily: MONO, fontSize: 10, opacity: 0.6 }}>Pattern: {item.fabric.toUpperCase()}</span>
-                        </div>
-                      </div>
-
-                      <div style={{ borderTop: `1px solid ${P.ink}15`, paddingTop: 16 }}>
-                        <span style={{ fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                          <Award size={14} style={{ color: P.accent }} /> Design Intent:
-                        </span>
-                        <p style={{ fontFamily: DISPLAY, fontSize: 13, margin: 0, opacity: 0.8, lineHeight: 1.4 }}>{sysInfo.desc}</p>
-                      </div>
-
-                      <div style={{ borderTop: `1px solid ${P.ink}15`, paddingTop: 16 }}>
-                        <span style={{ fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                          <Droplet size={14} className="animate-bounce" /> Care & Iteration:
-                        </span>
-                        <p style={{ fontFamily: DISPLAY, fontSize: 13, margin: 0, opacity: 0.8, lineHeight: 1.4 }}>{sysInfo.care}</p>
-                      </div>
-                    </div>
-                  );
-                })()
-              ) : (
-                <p style={{ fontFamily: MONO, fontSize: 12, opacity: 0.6 }}>No case study selected.</p>
-              )}
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                onClick={() => removePiece(selectedId)}
-                style={{
-                  background: "none",
-                  border: `1.5px solid ${P.accent}`,
-                  color: P.accent,
-                  borderRadius: 10,
-                  padding: "10px",
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  transition: "all 0.2s ease"
-                }}
-              >
-                <Trash2 size={13} /> REMOVE ARCHIVE ITEM
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Dynamic Clothes Creator Menu */}
         {isAdding && (
@@ -2407,6 +3041,30 @@ export default function App() {
           0%, 100% { transform: scaleY(1); }
           50%      { transform: scaleY(0.65); }
         }
+        @keyframes cloudFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .cloud-drift {
+          opacity: 0;
+        }
+        .clouds-revealed .cloud-drift {
+          animation: cloudFadeIn 2.4s ease-out forwards;
+        }
+        .clouds-revealed .cloud-drift-b {
+          animation-delay: 0.35s;
+        }
+        .clouds-revealed .cloud-drift-c {
+          animation-delay: 0.65s;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .clouds-revealed .cloud-drift {
+            animation: cloudFadeIn 0.4s ease-out forwards;
+          }
+          .clouds-revealed .cloud-drift-b { animation-delay: 0.08s; }
+          .clouds-revealed .cloud-drift-c { animation-delay: 0.15s; }
+        }
+
         @keyframes windParticle {
           from { transform: translateX(-200px); opacity: 0.1; }
           50%  { opacity: 0.5; }
@@ -2430,11 +3088,11 @@ export default function App() {
         @keyframes autumnPath3 { 0% { transform: translate(650px, -50px) rotate(0deg); opacity: 0; } 15% { opacity: 0.95; } 100% { transform: translate(1050px, 600px) rotate(360deg); opacity: 0; } }
         @keyframes autumnPath4 { 0% { transform: translate(850px, -50px) rotate(0deg); opacity: 0; } 15% { opacity: 0.95; } 100% { transform: translate(1150px, 600px) rotate(640deg); opacity: 0; } }
 
-        @keyframes winterPath0 { 0% { transform: translate(100px, -50px); opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(300px, 600px); opacity: 0; } }
-        @keyframes winterPath1 { 0% { transform: translate(300px, -50px); opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(500px, 600px); opacity: 0; } }
-        @keyframes winterPath2 { 0% { transform: translate(500px, -50px); opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(700px, 600px); opacity: 0; } }
-        @keyframes winterPath3 { 0% { transform: translate(700px, -50px); opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(900px, 600px); opacity: 0; } }
-        @keyframes winterPath4 { 0% { transform: translate(900px, -50px); opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(1100px, 600px); opacity: 0; } }
+        @keyframes winterDrift {
+          0% { transform: translate(var(--sx, 0px), -50px); opacity: 1; }
+          92% { opacity: 1; }
+          100% { transform: translate(calc(var(--sx, 0px) + var(--drift-x, 200px)), 600px); opacity: 0; }
+        }
 
         @keyframes birdFlyToRight {
           0%   { transform: translate(70px, 122px) scale(1, 1); }
@@ -2477,6 +3135,65 @@ export default function App() {
           from { transform: translateX(50px); opacity: 0; }
           to   { transform: translateX(0); opacity: 1; }
         }
+        @keyframes tagSway {
+          0%, 100% { transform: rotate(-0.9deg) translateY(0); }
+          50%      { transform: rotate(0.9deg) translateY(-1px); }
+        }
+        @keyframes projectCardIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        .garment-label {
+          transition: opacity 0.2s ease;
+        }
+        .project-focus-card {
+          transform: translate(-50%, 0);
+          transition: left 0.62s cubic-bezier(0.22, 1, 0.36, 1), top 0.62s cubic-bezier(0.22, 1, 0.36, 1), width 0.35s ease, opacity 0.35s ease;
+        }
+        .project-focus-card--compact {
+          transform: translate(-50%, -8px);
+        }
+        .project-focus-card-sway {
+          transform-origin: top center;
+          animation: tagSway var(--tag-sway-duration, 5s) ease-in-out infinite;
+          animation-delay: var(--tag-sway-delay, 0s);
+        }
+        .project-focus-card-inner {
+          border-radius: 16px;
+          padding: 13px 16px 10px;
+          position: relative;
+          animation: projectCardIn 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .project-focus-card--compact .project-focus-card-inner {
+          padding: 13px 16px 10px;
+        }
+        .project-focus-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          font-weight: 600;
+          letter-spacing: 0.6px;
+          text-decoration: none;
+          cursor: pointer;
+          transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+        .project-focus-btn:hover {
+          transform: translateY(-1px);
+        }
+        .project-focus-close {
+          width: 30px;
+          height: 30px;
+          padding: 0;
+          flex-shrink: 0;
+          border: none;
+        }
+        .project-focus-close:hover {
+          opacity: 0.82;
+        }
+        .project-focus-btn-secondary {
+          border: none;
+        }
         @keyframes pulse {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 1; }
@@ -2495,9 +3212,43 @@ export default function App() {
           0% { transform: translate(0, 0); opacity: 1; }
           100% { transform: translate(var(--vx), var(--vy)); opacity: 0; }
         }
-        @keyframes shimmerHeat {
-          0% { transform: scale(0.2); opacity: 0.8; }
-          100% { transform: scale(3.5); opacity: 0; }
+        @keyframes birdSnowDrop {
+          0% { transform: translate(0, 0) scale(1); opacity: 1; }
+          70% { opacity: 0.85; }
+          100% { transform: translate(var(--vx), var(--vy)) scale(0.55); opacity: 0; }
+        }
+        @keyframes birdHeadSnowLand {
+          0% {
+            transform: translate(calc(var(--land-x) + var(--land-drift)), calc(var(--land-y) - 38px)) rotate(var(--land-rot)) scale(calc(var(--land-scale) * 0.65));
+            opacity: 0;
+          }
+          12% { opacity: 0.9; }
+          78% {
+            transform: translate(var(--land-x), calc(var(--land-y) + 2px)) rotate(var(--land-rot)) scale(calc(var(--land-scale) * 1.06));
+            opacity: 1;
+          }
+          100% {
+            transform: translate(var(--land-x), var(--land-y)) rotate(var(--land-rot)) scale(var(--land-scale));
+            opacity: 1;
+          }
+        }
+        @keyframes fireflyFlight {
+          0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+          5% { transform: translate(-2px, -2px) scale(1); opacity: 1; }
+          20% { transform: translate(calc(var(--dx) * 0.22 * 1px + var(--w1) * 1px), calc(var(--dy) * 0.1 * 1px)) scale(1); opacity: 1; }
+          36% { transform: translate(calc(var(--dx) * 0.44 * 1px - var(--w2) * 0.5px), calc(var(--dy) * 0.26 * 1px)) scale(1); opacity: 1; }
+          52% { transform: translate(calc(var(--dx) * 0.6 * 1px + var(--w1) * 0.6px), calc(var(--dy) * 0.44 * 1px)) scale(0.98); opacity: 1; }
+          66% { transform: translate(calc(var(--dx) * 0.74 * 1px - var(--w2) * 0.4px), calc(var(--dy) * 0.6 * 1px)) scale(0.95); opacity: 0.92; }
+          80% { transform: translate(calc(var(--dx) * 0.88 * 1px), calc(var(--dy) * 0.78 * 1px)) scale(0.88); opacity: 0.6; }
+          100% { transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px)) scale(0.65); opacity: 0; }
+        }
+        @keyframes fireflyBlink {
+          0%, 38%, 100% { opacity: 0.18; }
+          44%, 50% { opacity: 1; }
+          54% { opacity: 0.3; }
+          58% { opacity: 0.95; }
+          72%, 88% { opacity: 0.22; }
+          80% { opacity: 0.88; }
         }
 
         .pulse-dot {
@@ -2559,20 +3310,9 @@ export default function App() {
         .drifting-leaf-container.particle-autumn-12 { animation: autumnPath2 13s linear infinite; animation-delay: -9s; }
         .drifting-leaf-container.particle-autumn-13 { animation: autumnPath3 14s linear infinite; animation-delay: -11s; }
 
-        .drifting-snow-container.particle-winter-0 { animation: winterPath0 10s linear infinite; }
-        .drifting-snow-container.particle-winter-1 { animation: winterPath1 11s linear infinite; animation-delay: -1.8s; }
-        .drifting-snow-container.particle-winter-2 { animation: winterPath2 9s linear infinite; animation-delay: -3.5s; }
-        .drifting-snow-container.particle-winter-3 { animation: winterPath3 12s linear infinite; animation-delay: -5.2s; }
-        .drifting-snow-container.particle-winter-4 { animation: winterPath4 10s linear infinite; animation-delay: -6.9s; }
-        .drifting-snow-container.particle-winter-5 { animation: winterPath0 11s linear infinite; animation-delay: -8.6s; }
-        .drifting-snow-container.particle-winter-6 { animation: winterPath2 9s linear infinite; animation-delay: -10.3s; }
-        .drifting-snow-container.particle-winter-7 { animation: winterPath1 12s linear infinite; animation-delay: -12.0s; }
-        .drifting-snow-container.particle-winter-8 { animation: winterPath3 10s linear infinite; animation-delay: -2s; }
-        .drifting-snow-container.particle-winter-9 { animation: winterPath4 11s linear infinite; animation-delay: -4s; }
-        .drifting-snow-container.particle-winter-10 { animation: winterPath0 9s linear infinite; animation-delay: -6s; }
-        .drifting-snow-container.particle-winter-11 { animation: winterPath1 12s linear infinite; animation-delay: -8s; }
-        .drifting-snow-container.particle-winter-12 { animation: winterPath2 10s linear infinite; animation-delay: -1s; }
-        .drifting-snow-container.particle-winter-13 { animation: winterPath3 11s linear infinite; animation-delay: -7s; }
+        .drifting-snow-container {
+          animation: winterDrift linear infinite;
+        }
 
         .intro-bird-flight-left {
           animation: birdFlyToLeft 1.8s cubic-bezier(0.25, 1, 0.5, 1) -450ms both;
@@ -2602,30 +3342,69 @@ export default function App() {
           animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
           transform-origin: 0px 25px;
         }
+        .sunflower-bloom {
+          animation: sunflowerPop 1.1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+          transform-origin: 0px 25px;
+        }
+        .sunflower-head {
+          animation: sunflowerSway 5s ease-in-out 1.1s infinite;
+          transform-origin: 0 -38px;
+        }
+        @keyframes sunflowerPop {
+          0% { transform: scale(0) rotate(-12deg); opacity: 0; }
+          50% { transform: scale(1.12) rotate(4deg); opacity: 1; }
+          75% { transform: scale(0.97) rotate(-1deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes sunflowerSway {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(2deg); }
+        }
         .sand-ripple {
           animation: leafRustle 1.8s ease-out forwards;
         }
         .snow-splash {
           animation: snowSplashAnim 1.2s ease-out forwards;
         }
-        .heat-shimmer-ring {
+        .bird-snow-drop {
+          animation: birdSnowDrop 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards;
+        }
+        .bird-head-snowflake-land {
+          transform-box: fill-box;
           transform-origin: center;
-          animation: shimmerHeat 1.2s ease-out forwards;
+          opacity: 0;
+          animation: birdHeadSnowLand 1.05s cubic-bezier(0.33, 1, 0.42, 1) forwards;
+        }
+        .hill-firefly-flight {
+          animation-name: fireflyFlight;
+          animation-duration: var(--flight-ms, 5.5s);
+          animation-timing-function: cubic-bezier(0.42, 0.02, 0.48, 1);
+          animation-fill-mode: forwards;
+          transform-origin: 0 0;
+          transform-box: fill-box;
+        }
+        .hill-firefly-glow {
+          animation: fireflyBlink var(--blink-ms, 1.05s) ease-in-out infinite;
+          animation-delay: var(--blink-delay, 0s);
         }
 
         .cloth-body {
           animation: sway var(--wind-speed, 4.2s) ease-in-out infinite;
-          transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .piece-wrapper {
+          /* flutter lives on .piece-flutter; spread motion on .piece-spread-offset */
+        }
+        .piece-flutter {
           animation: flutter 5s ease-in-out infinite;
-          transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .piece-wrapper.lift {
-          transform: translateY(-8px) scale(1.05);
+        .piece-spread-offset {
+          transform: translateX(var(--focus-x, 0px));
         }
-        .piece-wrapper.lift .cloth-body {
-          animation-duration: 1.5s !important;
+        .piece-wrapper.scene-interactive .piece-spread-offset {
+          transition: transform var(--focus-transition, 620ms) cubic-bezier(0.22, 1, 0.36, 1) var(--focus-delay, 0ms);
+        }
+        .piece-spread-offset--anchor {
+          transition: none !important;
         }
         .sway-line { animation: lineSway 4.8s ease-in-out infinite; transform-origin: center; }
         .blade { animation: blade 3.6s ease-in-out infinite; }
@@ -2679,10 +3458,13 @@ const getClothType = (pc, creatorType) => {
   return "TEE";
 };
 
-function clothShape(pc, x, y, on, P, creatorType, currentSeasonKey, lampWarmth = 0) {
+function clothShape(pc, x, y, on, P, creatorType, currentSeasonKey, lampWarmth = 0, focusLighten = false) {
   const stroke = on ? P.accent : P.ink;
   const tinted = P.clothTint ? blendHex(pc.hue, P.clothTint, 0.3) : pc.hue;
   let fill = on ? blendHex(tinted, P.accent, 0.18) : tinted;
+  if (focusLighten) {
+    fill = blendHex(fill, P.clothTint || P.cloth, FOCUS_MODE.clothLighten);
+  }
   if (lampWarmth > 0) {
     fill = blendHex(fill, "#FFE9A8", 0.1 + lampWarmth * 0.3);
     fill = blendHex(fill, "#FFFDF5", lampWarmth * 0.14);

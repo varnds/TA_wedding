@@ -157,6 +157,28 @@ export const BASKET_CENTER_X = 180;
 export const BASKET_CENTER_Y = 528;
 export const BASKET_GROUND_Y = 556;
 
+/** Hit test for basket taps — blocks ground flower planting; reserved for basket interactions */
+export function isBasketClick(svgX, svgY) {
+  if (svgY < 458 || svgY > 562) return false;
+  if (svgX < 98 || svgX > 264) return false;
+
+  if (svgY <= 506 && svgX >= 138 && svgX <= 222) return true;
+
+  if (svgY >= 483 && svgY <= 512) {
+    if (svgX >= 98 && svgX <= 130) return true;
+    if (svgX >= 230 && svgX <= 264) return true;
+  }
+
+  if (svgY >= 493) {
+    const t = Math.max(0, Math.min(1, (svgY - 500) / 56));
+    const left = 120 + 14 * t;
+    const right = 240 - 14 * t;
+    return svgX >= left - 8 && svgX <= right + 8;
+  }
+
+  return false;
+}
+
 export function basketLocal(p) {
   return windowProgress(p, BASKET_PHASE_START, BASKET_PHASE_END);
 }
@@ -254,6 +276,7 @@ export function nameCharOffset(local) {
 export function computeIntroValues(p, count = 5) {
   const cameraT = easeInOut(windowProgress(p, 0, 0.58));
   const atmosphere = windowProgress(p, 0.48, 0.62) * Math.min(1, cameraT / 0.35);
+  const cloudReveal = easeInOut(windowProgress(p, 0.44, 0.76)) * Math.min(1, cameraT / 0.35);
   const ground = windowProgress(p, 0.32, 0.50) * Math.min(1, cameraT / 0.4);
   const ropeOpacity = windowProgress(p, 0.38, 0.56) * Math.min(1, cameraT / 0.45);
   const ropeDraw = windowProgress(p, 0.38, 0.58);
@@ -268,6 +291,7 @@ export function computeIntroValues(p, count = 5) {
 
   return {
     atmosphere,
+    cloudReveal,
     cameraT,
     ground,
     ropeOpacity,
