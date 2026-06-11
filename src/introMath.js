@@ -318,3 +318,86 @@ export function garmentHangPosition(i, count = 5) {
   const y = 133 + 44 * (1 - Math.pow(2 * t - 1, 2)) + (hangOffsets[i % hangOffsets.length]);
   return { x, y };
 }
+
+const SOCK_SPREAD_COUNT = 6;
+const SOCK_BASE_COUNT = 5;
+export const SOCK_INSERT_INDEX = 2;
+
+/** Rope sag when the sock lands on the line */
+export function sockRopeSagBonus(sockProgress) {
+  const landAt = GARMENT_LAND_FRACTION;
+  const phase = windowProgress(sockProgress, landAt, landAt + ROPE_REBOUND_DURATION * 3.2);
+  if (phase <= 0 || phase >= 1) return 0;
+  return Math.sin(phase * 2.5 * Math.PI) * 46 * Math.pow(1 - phase, 1.25);
+}
+
+export function sockRopeBezierControl(sockProgress, sockHangX) {
+  const baseX = 520;
+  const baseY = 196;
+  const sagY = sockRopeSagBonus(sockProgress);
+  let cx = baseX;
+  const bonus = Math.abs(sagY);
+  if (bonus > 0.5 && sockHangX != null) {
+    cx = baseX + (sockHangX - baseX) * 0.38 * clamp(bonus / 46, 0, 1);
+  }
+  return { cx, cy: baseY + sagY };
+}
+
+/** Pendulum overshoot after the sock lands on the line */
+export function sockLandingSwingRot(progress) {
+  if (progress <= GARMENT_LAND_FRACTION) return 0;
+  const u = (progress - GARMENT_LAND_FRACTION) / (1 - GARMENT_LAND_FRACTION);
+  return Math.sin(u * 2.5 * Math.PI) * 20 * (1 - u);
+}
+
+export function sockLandingSwingY(progress) {
+  if (progress <= GARMENT_LAND_FRACTION) return 0;
+  const u = (progress - GARMENT_LAND_FRACTION) / (1 - GARMENT_LAND_FRACTION);
+  return Math.sin(u * 2.8 * Math.PI) * 18 * (1 - u);
+}
+
+/** Tail settle — bridges landing swing into ambient wind sway */
+export function sockSettleSwingRot(settleT) {
+  if (settleT <= 0 || settleT >= 1) return 0;
+  return Math.sin(settleT * 2.4 * Math.PI) * 14 * (1 - settleT);
+}
+
+export function sockSettleSwingY(settleT) {
+  if (settleT <= 0 || settleT >= 1) return 0;
+  return Math.sin(settleT * 2.6 * Math.PI + 0.25) * 12 * (1 - settleT);
+}
+
+/** Clothespin pop keyed to landing fraction (for sock drop, not intro timeline) */
+export function pinScaleFromLandProgress(progress) {
+  const landAt = GARMENT_LAND_FRACTION;
+  const pop = windowProgress(progress, landAt, landAt + 0.045);
+  if (pop <= 0) return 0;
+  const t = clamp(pop, 0, 1);
+  return 1 + 0.32 * Math.sin(t * Math.PI);
+}
+
+/** Animate garments 3–5 aside and drop the sock into the middle slot */
+export function resolveSockEasterEggPosition(i, piece, progress) {
+  const t = easeInOut(clamp(progress, 0, 1));
+
+  if (piece?.isSock) {
+    const target = garmentHangPosition(SOCK_INSERT_INDEX, SOCK_SPREAD_COUNT);
+    const midFive = garmentHangPosition(SOCK_INSERT_INDEX, SOCK_BASE_COUNT);
+    const x = lerp(midFive.x, target.x, t);
+    const fallLocal = clamp(progress, 0, 1);
+    return {
+      x,
+      y: target.y + garmentFallOffset(fallLocal),
+    };
+  }
+
+  if (t >= 1) return garmentHangPosition(i, SOCK_SPREAD_COUNT);
+
+  const oldIndex = i < SOCK_INSERT_INDEX ? i : i - 1;
+  const from = garmentHangPosition(oldIndex, SOCK_BASE_COUNT);
+  const to = garmentHangPosition(i, SOCK_SPREAD_COUNT);
+  return {
+    x: lerp(from.x, to.x, t),
+    y: lerp(from.y, to.y, t),
+  };
+}

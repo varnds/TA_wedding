@@ -5,7 +5,7 @@ import {
   Leaf,
   Snowflake,
   Flower,
-  Moon
+  Moon,
 } from "lucide-react";
 import {
   INTRO_HOLD_MS,
@@ -37,7 +37,15 @@ import {
   BASKET_DUST_OFFSETS,
   basketDustPuff,
   ropeBezierControl,
+  sockRopeBezierControl,
   garmentHangPosition,
+  resolveSockEasterEggPosition,
+  pinScaleFromLandProgress,
+  sockLandingSwingRot,
+  sockLandingSwingY,
+  sockSettleSwingRot,
+  sockSettleSwingY,
+  SOCK_INSERT_INDEX,
   basketHasImpacted,
   BASKET_IMPACT_PROGRESS,
   isBasketClick,
@@ -46,6 +54,8 @@ import {
   BIRD_PERCH_X,
   BIRD_PERCH_Y,
 } from "./introMath";
+import { CaseStudyEditorial } from "./CaseStudyEditorial";
+import { AboutPage } from "./AboutPage";
 
 const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 const DISPLAY = "'Fraunces', serif";
@@ -176,6 +186,7 @@ const INITIAL_PIECES = [
     summary: "Designed trust and moderation flows that help players report issues quickly while keeping communities safe and accountable.",
     fabric: "weave",
     hue: "#F6EEDD",
+    url: "https://example.com/work/player-safety",
   },
   {
     id: 1,
@@ -184,6 +195,7 @@ const INITIAL_PIECES = [
     summary: "Reworked grouping and queue mechanics to get players into the right experiences faster, with fairer matches.",
     fabric: "dots",
     hue: "#F7E9D6",
+    url: "https://example.com/work/roblox-matchmaking",
   },
   {
     id: 2,
@@ -192,6 +204,7 @@ const INITIAL_PIECES = [
     summary: "Shipped developer tools and console patterns that make complex cloud workflows feel clear, fast, and dependable.",
     fabric: "plain",
     hue: "#F4D9C2",
+    url: "https://example.com/work/opencloud",
   },
   {
     id: 3,
@@ -200,6 +213,7 @@ const INITIAL_PIECES = [
     summary: "Built enterprise workspace layouts balancing dense technical data with a calm, navigable structure.",
     fabric: "stripe",
     hue: "#FBF4E6",
+    url: "https://example.com/work/mathworks",
   },
   {
     id: 4,
@@ -208,8 +222,199 @@ const INITIAL_PIECES = [
     summary: "Led a confidential product ecosystem spanning navigation, tokens, and high-fidelity workflows under NDA.",
     fabric: "weave",
     hue: "#FBF4E6",
+    url: "https://example.com/work/zorro",
   },
 ];
+
+const SOCK_PIECE = {
+  id: 99,
+  isSock: true,
+  title: "",
+  note: "Thank you for coming.",
+  fabric: "plain",
+  hue: "#FFFFFF",
+};
+
+const SOCK_REVEAL_MS = 760;
+const SOCK_SETTLE_MS = 480;
+const SEASON_KEYS = ["spring", "summer", "autumn", "winter", "night"];
+
+const CASE_STUDY_BY_ID = {
+  0: {
+    problem: "Players needed a faster, clearer way to report safety issues without breaking immersion or losing game context. Moderators were juggling fragmented tools that slowed response time and made policy enforcement inconsistent at scale.",
+    process: "Partnered with trust & safety, policy, and engineering to map reporting paths end-to-end — from in-experience triggers through escalation, review, and player follow-up.",
+    processSteps: [
+      "Journey mapping with players and moderators across report types and severity tiers",
+      "Flow iteration on inline reporting, evidence capture, and status transparency",
+      "High-fidelity prototypes validated with policy partners before phased rollout",
+    ],
+    solution: "A unified reporting and moderation system with contextual entry points, guided evidence collection, and clearer status for both players and internal teams — aligned to policy without adding friction.",
+    impact: "Shipped with trust & safety partners across core experiences. Teams reported faster triage, clearer escalation paths, and stronger alignment between player-facing flows and backend moderation tools.",
+    impactStats: [
+      { value: "38%", label: "Faster time-to-submit for safety reports" },
+      { value: "2.4×", label: "Increase in complete report submissions" },
+      { value: "14 wk", label: "From discovery synthesis to phased ship" },
+    ],
+    wireframeLofi: "Early structure explorations for inline reporting, escalation tiers, and moderator handoff.",
+    wireframeHifi: "Polished UI direction for player-facing flows and internal review surfaces.",
+  },
+  1: {
+    problem: "Matchmaking queues felt opaque — players couldn't tell why they were waiting, when grouping would resolve, or whether the system was working fairly across experiences and skill bands.",
+    process: "Worked with gameplay and systems design to stress-test queue states, grouping logic, and player mental models under load and edge-case match conditions.",
+    processSteps: [
+      "Qualitative research on wait-state anxiety and drop-off during matchmaking",
+      "IA and state-model iteration for queue progress, party grouping, and re-queue flows",
+      "Prototype testing on fairness cues, ETA communication, and error recovery",
+    ],
+    solution: "Redesigned queue and grouping mechanics with clearer wait states, fairer match signals, and recovery paths that keep players oriented when conditions change mid-queue.",
+    impact: "Reduced confusion during peak matchmaking windows and established reusable patterns for wait-state communication across multiple experiences.",
+    impactStats: [
+      { value: "27%", label: "Reduction in mid-queue drop-off" },
+      { value: "1.8×", label: "Improvement in perceived match fairness" },
+      { value: "10 wk", label: "Cross-functional iteration to launch" },
+    ],
+    wireframeLofi: "Queue state explorations, party grouping layouts, and edge-case recovery paths.",
+    wireframeHifi: "Final matchmaking UI with progress cues and system-status patterns.",
+  },
+  2: {
+    problem: "Developers managing cloud resources faced dense consoles, scattered workflows, and steep onboarding — complex operations felt brittle and hard to trust at scale.",
+    process: "Embedded with platform and developer-experience teams to simplify console navigation, operational density, and the path from first login to confident daily use.",
+    processSteps: [
+      "Developer interviews and workflow audits across provisioning, monitoring, and ops tasks",
+      "Information architecture passes to reduce nested navigation and redundant entry points",
+      "Component system build-out with eng for repeatable console patterns",
+    ],
+    solution: "A clearer console platform with streamlined workflows, shared UI patterns, and onboarding affordances that make heavy cloud operations feel legible and dependable.",
+    impact: "Shortened onboarding for new developers and established a pattern library reused across multiple cloud tools.",
+    impactStats: [
+      { value: "45%", label: "Fewer steps in core provisioning flows" },
+      { value: "3×", label: "Faster first-task completion in onboarding tests" },
+      { value: "16 wk", label: "Platform patterns documented and shipped" },
+    ],
+    wireframeLofi: "Console IA studies, task-flow wireframes, and density stress tests.",
+    wireframeHifi: "Production-ready developer console screens and shared component specs.",
+  },
+  3: {
+    problem: "Enterprise users needed to scan dense technical datasets quickly without losing spatial context — existing workspace layouts buried navigation and overwhelmed new users.",
+    process: "Ran structured usability sessions with technical practitioners to balance data density, hierarchy, and calm visual rhythm across primary workspace tasks.",
+    processSteps: [
+      "Workflow synthesis across analysis, configuration, and collaboration tasks",
+      "Grid and navigation prototypes stress-tested with realistic data volumes",
+      "Visual system refinement for scannability, contrast, and long-session comfort",
+    ],
+    solution: "Enterprise workspace layouts that organize dense information into scannable regions, with navigation tested against real practitioner workflows and accessibility requirements.",
+    impact: "Improved task completion in usability studies and delivered a calmer visual system for long-form technical work.",
+    impactStats: [
+      { value: "32%", label: "Faster scan-to-action in usability tests" },
+      { value: "AA", label: "Validated against WCAG contrast targets" },
+      { value: "12 wk", label: "From wireframes to validated hi-fi system" },
+    ],
+    wireframeLofi: "Workspace grid studies and navigation hierarchy explorations.",
+    wireframeHifi: "Enterprise UI direction with dense-data layouts and tokenized components.",
+  },
+  4: {
+    problem: "A multi-product suite under NDA needed a coherent navigation model, shared tokens, and high-fidelity workflows — without fragmenting across teams or breaking confidentiality constraints.",
+    process: "Led cross-product design alignment under strict confidentiality, establishing shared foundations while preserving team-specific workflow depth.",
+    processSteps: [
+      "Ecosystem audit across navigation, tokens, and core task flows",
+      "Confidential stakeholder reviews on IA, patterns, and phased delivery",
+      "High-fidelity workflow specs for primary user journeys under NDA",
+    ],
+    solution: "A confidential design ecosystem spanning navigation architecture, token systems, and production-ready workflows — structured for multi-product scale while protecting sensitive details.",
+    impact: "Aligned multiple product teams on a shared foundation and accelerated high-fidelity delivery for core confidential workflows.",
+    impactStats: [
+      { value: "5+", label: "Product surfaces aligned to shared system" },
+      { value: "1", label: "Unified token + navigation foundation" },
+      { value: "NDA", label: "Confidential delivery throughout" },
+    ],
+    wireframeLofi: "Confidential IA and flow explorations (representative placeholders).",
+    wireframeHifi: "High-fidelity workflow direction under NDA (representative placeholders).",
+  },
+};
+
+const PROJECT_META = {
+  0: { category: "Trust & Safety", date: "2021 — 2023", role: "Lead Product Designer" },
+  1: { category: "Gameplay Systems", date: "2020 — 2022", role: "Product Designer" },
+  2: { category: "Developer Platform", date: "2019 — 2021", role: "Product Designer" },
+  3: { category: "Enterprise UX", date: "2020 — 2022", role: "Lead UX Designer" },
+  4: { category: "Confidential / NDA", date: "2021 — Present", role: "Design Lead" },
+};
+
+function projectMeta(item) {
+  return PROJECT_META[item.id] ?? {
+    category: item.note,
+    date: "Present",
+    role: "Product Designer",
+  };
+}
+
+function caseStudyContent(item) {
+  const content = CASE_STUDY_BY_ID[item.id];
+  if (content) return content;
+  return {
+    problem: `${item.summary} The work required balancing user needs, technical constraints, and cross-functional alignment from discovery through ship.`,
+    process: `Research synthesis, iterative flows, and high-fidelity prototyping for ${item.note.toLowerCase()} — with regular reviews before launch.`,
+    processSteps: [
+      "Discovery and stakeholder interviews across primary user journeys",
+      "Flow mapping, IA stress tests, and iterative wireframe reviews",
+      "Visual system build-out, prototype validation, and phased ship",
+    ],
+    solution: item.summary,
+    impact: "Measured through task completion, qualitative feedback, and adoption after rollout.",
+    impactStats: [
+      { value: "—", label: "Outcomes tracked post-launch" },
+      { value: "3", label: "Cross-functional workstreams" },
+      { value: "Ship", label: "End-to-end UX ownership" },
+    ],
+    wireframeLofi: "Early structure explorations and flow validation.",
+    wireframeHifi: "Polished UI direction aligned to the design system.",
+  };
+}
+
+const PROJECT_VIEW_GROW_MS = 580;
+const PROJECT_VIEW_DROP_MS = 620;
+
+function ProjectCaseStudySheetContent({
+  item,
+  ink,
+  bodyInk,
+  accent,
+  cloth,
+  clothTint,
+  hue,
+  meta,
+  projectIndex,
+  projects,
+  onNav,
+  onProjectSelect,
+  layoutId,
+  onLayoutChange,
+  season,
+}) {
+  const content = caseStudyContent(item);
+  return (
+    <div className="case-study-sheet-content case-study-sheet-content--card" style={{ "--cs-accent": accent }}>
+      <CaseStudyEditorial
+        item={item}
+        content={content}
+        ink={ink}
+        bodyInk={bodyInk}
+        accent={accent}
+        cloth={cloth}
+        clothTint={clothTint}
+        hue={hue}
+        meta={meta}
+        projectIndex={projectIndex}
+        projects={projects}
+        onNav={onNav}
+        onProjectSelect={onProjectSelect}
+        layoutId={layoutId}
+        onLayoutChange={onLayoutChange}
+        season={season}
+      />
+    </div>
+  );
+}
 
 const ROPE_PIN_MIN = 108;
 const ROPE_PIN_MAX = 932;
@@ -292,6 +497,24 @@ function hillSurfaceY(x) {
   const mt = 1 - t;
   return mt * mt * y1 + 2 * mt * t * cy2 + t * t * y2;
 }
+
+/** Middle hill (hill2) crest — right post sits here, behind the front hill */
+function hill2SurfaceY(x) {
+  const cx = Math.max(-320, Math.min(1360, x));
+  const x0 = -320, y0 = 480, cx1 = 350, cy1 = 430, x1 = 750, y1 = 480;
+  if (cx <= x1) {
+    const t = (cx - x0) / (x1 - x0);
+    const mt = 1 - t;
+    return mt * mt * y0 + 2 * mt * t * cy1 + t * t * y1;
+  }
+  const cx2 = 1150, cy2 = 530, x2 = 1360, y2 = 450;
+  const t = (cx - x1) / (x2 - x1);
+  const mt = 1 - t;
+  return mt * mt * y1 + 2 * mt * t * cy2 + t * t * y2;
+}
+
+const RIGHT_POST_X = 970;
+const RIGHT_POST_BOTTOM = Math.round(hill2SurfaceY(RIGHT_POST_X));
 
 const SUNFLOWER_HEAD_Y = -48;
 const SUNFLOWER_MIN_CLICK = 10;
@@ -645,7 +868,26 @@ export default function App() {
   const [snowSplashes, setSnowSplashes] = useState([]);
   const [birdSnowFall, setBirdSnowFall] = useState([]);
   const [birdSnowLandingKey, setBirdSnowLandingKey] = useState(0);
+  const [projectViewOpen, setProjectViewOpen] = useState(false);
+  const [projectViewClosing, setProjectViewClosing] = useState(false);
+  const [projectViewEntered, setProjectViewEntered] = useState(false);
+  const [projectViewSettled, setProjectViewSettled] = useState(false);
+  const projectViewCloseTimerRef = useRef(null);
+  const projectViewSheetRef = useRef(null);
+  const projectViewFinishLockRef = useRef(false);
+  const focusCardRef = useRef(null);
+  const [growCardOrigin, setGrowCardOrigin] = useState(null);
+  const studyScrollRef = useRef(null);
   const [fireflies, setFireflies] = useState([]);
+
+  const [aboutViewOpen, setAboutViewOpen] = useState(false);
+  const [aboutViewClosing, setAboutViewClosing] = useState(false);
+  const [aboutViewEntered, setAboutViewEntered] = useState(false);
+  const aboutScrollRef = useRef(null);
+  const aboutCloseTimerRef = useRef(null);
+
+  const [aboutLayoutId, setAboutLayoutId] = useState("fold");
+  const [projectLayoutId, setProjectLayoutId] = useState("fold");
 
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("NEW CASE STUDY");
@@ -654,8 +896,18 @@ export default function App() {
   const [newHue, setNewHue] = useState("#EFE6D2");
   const [newNote, setNewNote] = useState("Interactive UI case study");
   const [addError, setAddError] = useState("");
+  const [seasonsClicked, setSeasonsClicked] = useState(() => new Set());
+  const [sockAnimProgress, setSockAnimProgress] = useState(0);
+  const [sockSettleProgress, setSockSettleProgress] = useState(0);
+  const [sockRevealDone, setSockRevealDone] = useState(false);
+  const [sockNoteOpen, setSockNoteOpen] = useState(false);
+  const sockTriggeredRef = useRef(false);
 
   const P = SEASONS[currentSeasonKey];
+  const portfolioPieces = useMemo(() => pieces.filter((p) => !p.isSock), [pieces]);
+  const sockOnLine = pieces.some((p) => p.isSock);
+  const sockAnimating = sockOnLine && !sockRevealDone;
+  const sockSettling = sockAnimating && sockAnimProgress >= 1;
   const isWinter = currentSeasonKey === "winter";
   const isNight = currentSeasonKey === "night";
   const sel = pieces.find((p) => p.id === hot) || pieces.find((p) => p.id === selectedId);
@@ -816,11 +1068,30 @@ export default function App() {
     if (!projectFocusActive || !svgRef.current || focusedIndex < 0) return null;
     return computeFocusCardPos(svgRef.current, focusedIndex, pieces.length);
   }, [projectFocusActive, focusedIndex, pieces.length, activeViewBox, viewportWidth]);
-  const ropeCtrl = introComplete
-    ? { cx: 520, cy: 196 }
-    : ropeBezierControl(introProgress, pieces.length, hangPositions.map((h) => h.x), intro.ropeDraw >= 0.98);
-  const ropeControlY = introComplete ? 196 : lerp(ropeCtrl.cy, 196, settleBlend);
-  const ropeControlX = introComplete ? 520 : lerp(ropeCtrl.cx, 520, settleBlend);
+  const sockHangXForRope = (() => {
+    if (!sockAnimating) {
+      return hangXs[SOCK_INSERT_INDEX] ?? garmentHangPosition(SOCK_INSERT_INDEX, pieces.length).x;
+    }
+    const sockIdx = pieces.findIndex((p) => p.isSock);
+    if (sockIdx < 0) return hangXs[SOCK_INSERT_INDEX] ?? 520;
+    return resolveSockEasterEggPosition(sockIdx, pieces[sockIdx], sockAnimProgress).x;
+  })();
+  const ropeCtrl = (() => {
+    if (!introComplete) {
+      return ropeBezierControl(introProgress, pieces.length, hangXs, intro.ropeDraw >= 0.98);
+    }
+    if (sockAnimating) {
+      return sockRopeBezierControl(sockAnimProgress, sockHangXForRope);
+    }
+    return { cx: 520, cy: 196 };
+  })();
+  const ropeControlY = introComplete
+    ? ropeCtrl.cy
+    : lerp(ropeCtrl.cy, 196, settleBlend);
+  const ropeControlX = introComplete
+    ? ropeCtrl.cx
+    : lerp(ropeCtrl.cx, 520, settleBlend);
+  const ropeSwayActive = introComplete && (!sockAnimating || sockSettling);
   const basketAnim = basketMotion(intro.basket);
   const showBasket = introComplete || introProgress >= BASKET_PHASE_START;
   const basketOpacity = introComplete || introProgress >= BASKET_PHASE_START ? 1 : 0;
@@ -834,6 +1105,157 @@ export default function App() {
     && !isBirdFlying
     && (birdPosition === "left" || birdPosition === "right");
   const prevShowBirdSnowRef = useRef(false);
+
+  useEffect(() => {
+    if (projectViewCloseTimerRef.current) {
+      clearTimeout(projectViewCloseTimerRef.current);
+      projectViewCloseTimerRef.current = null;
+    }
+    setProjectViewOpen(false);
+    setProjectViewClosing(false);
+    setProjectViewEntered(false);
+    setGrowCardOrigin(null);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!projectViewOpen || projectViewClosing) return undefined;
+    setProjectViewEntered(false);
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setProjectViewEntered(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [projectViewOpen, projectViewClosing]);
+
+  useEffect(() => {
+    if (!aboutViewOpen || aboutViewClosing) return undefined;
+    setAboutViewEntered(false);
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setAboutViewEntered(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [aboutViewOpen, aboutViewClosing]);
+
+  useEffect(() => {
+    if (!projectViewEntered) {
+      setProjectViewSettled(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setProjectViewSettled(true), PROJECT_VIEW_GROW_MS);
+    return () => clearTimeout(timer);
+  }, [projectViewEntered]);
+
+  const triggerSockReveal = () => {
+    if (sockTriggeredRef.current) return;
+    sockTriggeredRef.current = true;
+    setPieces((prev) => {
+      if (prev.some((p) => p.isSock)) return prev;
+      const next = [...prev];
+      next.splice(2, 0, SOCK_PIECE);
+      return next;
+    });
+    setSockAnimProgress(0);
+    setSockSettleProgress(0);
+    setSockRevealDone(false);
+    setSockNoteOpen(false);
+  };
+
+  const handleSeasonSelect = (key) => {
+    setCurrentSeasonKey(key);
+    if (key !== "night") setLanternOn(false);
+    if (key === "night") {
+      setBirdGone(true);
+    } else {
+      setBirdGone(false);
+      triggerBirdStartle();
+    }
+    if (key === "winter") {
+      setShiver(true);
+      setTimeout(() => setShiver(false), 470);
+    }
+    setSeasonsClicked((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (seasonsClicked.size < SEASON_KEYS.length || sockTriggeredRef.current) return;
+    triggerSockReveal();
+  }, [seasonsClicked]);
+
+  useEffect(() => {
+    if (!sockOnLine || sockRevealDone) return undefined;
+    let cancelled = false;
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now) => {
+      if (cancelled) return;
+      const elapsed = now - t0;
+      if (elapsed < SOCK_REVEAL_MS) {
+        setSockAnimProgress(elapsed / SOCK_REVEAL_MS);
+        setSockSettleProgress(0);
+        raf = requestAnimationFrame(tick);
+      } else if (elapsed < SOCK_REVEAL_MS + SOCK_SETTLE_MS) {
+        setSockAnimProgress(1);
+        setSockSettleProgress((elapsed - SOCK_REVEAL_MS) / SOCK_SETTLE_MS);
+        raf = requestAnimationFrame(tick);
+      } else {
+        setSockAnimProgress(1);
+        setSockSettleProgress(1);
+        setSockRevealDone(true);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [sockOnLine, sockRevealDone]);
+
+  useEffect(() => {
+    if (!sockNoteOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setSockNoteOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sockNoteOpen]);
+
+  useEffect(() => {
+    const viewActive = projectViewOpen || projectViewClosing || aboutViewOpen || aboutViewClosing;
+    if (!viewActive) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (aboutViewOpen) closeAbout();
+      else closeProjectView();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectViewOpen, projectViewClosing, aboutViewOpen, aboutViewClosing]);
+
+  useEffect(() => () => {
+    if (projectViewCloseTimerRef.current) {
+      clearTimeout(projectViewCloseTimerRef.current);
+    }
+    if (aboutCloseTimerRef.current) {
+      clearTimeout(aboutCloseTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (showBirdSnowCap && !prevShowBirdSnowRef.current) {
@@ -913,8 +1335,150 @@ export default function App() {
     }, 1300);
   };
 
+  const finishProjectViewClose = () => {
+    if (projectViewFinishLockRef.current) return;
+    projectViewFinishLockRef.current = true;
+    if (projectViewCloseTimerRef.current) {
+      clearTimeout(projectViewCloseTimerRef.current);
+      projectViewCloseTimerRef.current = null;
+    }
+    setProjectViewOpen(false);
+    setProjectViewClosing(false);
+    setProjectViewEntered(false);
+    setGrowCardOrigin(null);
+    window.setTimeout(() => {
+      projectViewFinishLockRef.current = false;
+    }, 0);
+  };
+
+  const closeProjectView = () => {
+    if (!projectViewOpen || projectViewClosing) return;
+    setProjectViewClosing(true);
+    projectViewCloseTimerRef.current = window.setTimeout(
+      finishProjectViewClose,
+      PROJECT_VIEW_DROP_MS + 80,
+    );
+  };
+
+  const finishAboutClose = () => {
+    if (aboutCloseTimerRef.current) {
+      clearTimeout(aboutCloseTimerRef.current);
+      aboutCloseTimerRef.current = null;
+    }
+    setAboutViewOpen(false);
+    setAboutViewClosing(false);
+    setAboutViewEntered(false);
+  };
+
+  const closeAbout = () => {
+    if (!aboutViewOpen || aboutViewClosing) return;
+    setAboutViewClosing(true);
+    aboutCloseTimerRef.current = window.setTimeout(finishAboutClose, 420);
+  };
+
+  const openAbout = () => {
+    if (aboutCloseTimerRef.current) {
+      clearTimeout(aboutCloseTimerRef.current);
+      aboutCloseTimerRef.current = null;
+    }
+    if (aboutScrollRef.current) aboutScrollRef.current.scrollTop = 0;
+    setAboutViewClosing(false);
+    setAboutViewEntered(false);
+    setAboutViewOpen(true);
+  };
+
+  const handleEditorialNav = (dest) => {
+    if (dest === "work") {
+      closeAbout();
+      closeProjectView();
+      setSelectedId(null);
+      setHot(null);
+      return;
+    }
+    if (dest === "about") {
+      closeProjectView();
+      setSelectedId(null);
+      setHot(null);
+      openAbout();
+      return;
+    }
+    if (dest === "contact") {
+      closeProjectView();
+      setSelectedId(null);
+      setHot(null);
+      if (!aboutViewOpen) {
+        openAbout();
+        window.setTimeout(() => {
+          document.getElementById("about-contact")?.scrollIntoView({ behavior: "smooth" });
+        }, 480);
+      } else {
+        document.getElementById("about-contact")?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  };
+
+  const handleEditorialProjectSelect = (index) => {
+    const piece = portfolioPieces[index];
+    if (!piece) return;
+    closeAbout();
+    const wasOpen = projectViewOpen;
+    setSelectedId(piece.id);
+    setHot(piece.id);
+    if (wasOpen) closeProjectView();
+    window.setTimeout(() => {
+      handleViewProject();
+    }, wasOpen ? PROJECT_VIEW_DROP_MS + 120 : 680);
+  };
+
+  const handleProjectViewSheetTransitionEnd = (e) => {
+    if (!projectViewClosing || e.target !== projectViewSheetRef.current) return;
+    if (e.propertyName !== "transform") return;
+    finishProjectViewClose();
+  };
+
+  const captureGrowCardOrigin = () => {
+    if (focusCardRef.current) {
+      const r = focusCardRef.current.getBoundingClientRect();
+      setGrowCardOrigin({
+        top: r.top,
+        left: r.left,
+        width: r.width,
+        height: r.height,
+      });
+      return;
+    }
+    if (focusCardPos && svgRef.current?.parentElement) {
+      const bounds = svgRef.current.parentElement.getBoundingClientRect();
+      setGrowCardOrigin({
+        top: bounds.top + focusCardPos.y - 8,
+        left: bounds.left + focusCardPos.x - (focusCardPos.width / 2),
+        width: focusCardPos.width,
+        height: 118,
+      });
+    }
+  };
+
+  const handleViewProject = () => {
+    projectViewFinishLockRef.current = false;
+    if (projectViewCloseTimerRef.current) {
+      clearTimeout(projectViewCloseTimerRef.current);
+      projectViewCloseTimerRef.current = null;
+    }
+    captureGrowCardOrigin();
+    setProjectViewClosing(false);
+    setProjectViewEntered(false);
+    if (studyScrollRef.current) studyScrollRef.current.scrollTop = 0;
+    setProjectViewOpen(true);
+  };
+
   const resetToDefault = () => {
     setPieces(INITIAL_PIECES);
+    setSeasonsClicked(new Set());
+    sockTriggeredRef.current = false;
+    setSockAnimProgress(0);
+    setSockSettleProgress(0);
+    setSockRevealDone(false);
+    setSockNoteOpen(false);
     setWindStrength(3.0);
     setCurrentSeasonKey("summer");
     setSelectedId(null);
@@ -930,6 +1494,14 @@ export default function App() {
     setRustledLeaves([]);
     setSnowSplashes([]);
     setBirdSnowFall([]);
+    if (projectViewCloseTimerRef.current) {
+      clearTimeout(projectViewCloseTimerRef.current);
+      projectViewCloseTimerRef.current = null;
+    }
+    setProjectViewOpen(false);
+    setProjectViewClosing(false);
+    setProjectViewEntered(false);
+    setGrowCardOrigin(null);
     setFireflies([]);
   };
 
@@ -1798,7 +2370,7 @@ export default function App() {
               style={{ opacity: introComplete ? 1 : intro.ropeOpacity, transition: "stroke 1s ease" }}
             >
               <path d="M70 130 V470" />
-              <path d="M970 130 V532" />
+              <path d={`M${RIGHT_POST_X} 130 V${RIGHT_POST_BOTTOM}`} />
               <path d="M40 150 L100 130 M40 130 L100 150" strokeWidth="2.5" />
               <path d="M940 150 L1000 130 M940 130 L1000 150" strokeWidth="2.5" />
             </g>
@@ -1896,7 +2468,7 @@ export default function App() {
             {/* The line */}
             <path
               id="line"
-              className={introComplete ? "sway-line" : "intro-rope-loading"}
+              className={ropeSwayActive ? "sway-line" : sockAnimating ? "sock-rope-drop" : "intro-rope-loading"}
               d={`M70 138 Q${ropeControlX} ${ropeControlY} 970 138`}
               stroke={P.ink}
               strokeWidth="2.5"
@@ -1911,7 +2483,7 @@ export default function App() {
 
             <g style={{ opacity: isWinter ? 1 : 0, transition: "opacity 0.8s ease", pointerEvents: "none" }}>
                 <path
-                  className="sway-line"
+                  className={ropeSwayActive ? "sway-line" : sockAnimating ? "sock-rope-drop" : "intro-rope-loading"}
                   d={`M70 137 Q${ropeControlX} ${ropeControlY - 1} 970 137`}
                   stroke="#FFFFFF"
                   strokeWidth="3.5"
@@ -1929,9 +2501,16 @@ export default function App() {
             {/* PORTFOLIO CASE STUDY GARMENTS */}
             {pieces.map((_, i) => i).map((i) => {
               const pc = pieces[i];
-              const { x, y } = hangPositions[i];
+              const anchor = hangPositions[i];
+              let hangX = anchor.x;
+              let hangY = anchor.y;
+              if (sockAnimating && sockAnimProgress < 1) {
+                ({ x: hangX, y: hangY } = resolveSockEasterEggPosition(i, pc, sockAnimProgress));
+              }
+              const x = 0;
+              const y = 0;
               const isHovered = hot === pc.id;
-              const isSelected = selectedId === pc.id;
+              const isSelected = !pc.isSock && selectedId === pc.id;
               const isSpreadAnchor = projectFocusActive && i === spreadCenterIndex;
               const focusDx = projectFocusActive
                 ? garmentFocusOffset(i, spreadCenterIndex, hangXs)
@@ -1946,23 +2525,41 @@ export default function App() {
               const isHighlit = projectFocusActive ? isSelected : (isHovered || isSelected);
 
               const gLocal = introComplete ? 1 : garmentLocal(introProgress, i, pieces.length);
-              const showPiece = introComplete || gLocal > 0;
+              const sockMotionActive = pc.isSock && sockAnimating;
+              const showPiece = pc.isSock
+                ? sockOnLine && (sockAnimating || sockRevealDone || introComplete)
+                : (introComplete || gLocal > 0);
               const pieceOpacity = showPiece
-                ? Math.min(1, introComplete ? 1 : gLocal / 0.06)
+                ? (pc.isSock && sockAnimating
+                  ? 1
+                  : Math.min(1, introComplete ? 1 : gLocal / 0.06))
                 : 0;
-              const fallY = introComplete ? 0 : (
+              const sockSwingY = sockMotionActive
+                ? (sockAnimProgress < 1
+                  ? sockLandingSwingY(sockAnimProgress)
+                  : sockSettleSwingY(sockSettleProgress))
+                : 0;
+              const fallY = sockMotionActive
+                ? sockSwingY
+                : (introComplete ? 0 : (
                 garmentFallOffset(gLocal)
                 + middlePieceSwingY(gLocal, i)
                 + gustBillowY(introProgress, i, gLocal)
-              ) * (1 - settleBlend);
-              const pieceRot = introComplete ? 0 : (
+              ) * (1 - settleBlend));
+              const pieceRot = sockMotionActive
+                ? (sockAnimProgress < 1
+                  ? garmentRotation(sockAnimProgress, i) + sockLandingSwingRot(sockAnimProgress)
+                  : sockSettleSwingRot(sockSettleProgress))
+                : (introComplete ? 0 : (
                 garmentRotation(gLocal, i)
                 + middlePieceExtraRot(gLocal, i)
                 + gustRotation(introProgress, i, gLocal)
-              ) * (1 - settleBlend);
-              const pinS = introComplete ? 1 : pinScale(introProgress, i, pieces.length);
+              ) * (1 - settleBlend));
+              const pinS = sockMotionActive
+                ? (sockAnimProgress < 1 ? pinScaleFromLandProgress(sockAnimProgress) : 1)
+                : (introComplete ? 1 : pinScale(introProgress, i, pieces.length));
 
-              const lampWarmth = isNight && lanternOn ? Math.pow(Math.max(0, Math.min(1, (x - 70) / 900)), 0.82) : 0;
+              const lampWarmth = isNight && lanternOn ? Math.pow(Math.max(0, Math.min(1, (hangX - 70) / 900)), 0.82) : 0;
               const windSpeedFactor = windStrength > 0 ? (9 + (i % 3) * 1.4) / windStrength : 1000;
               const animationStyle = {
                 animationDuration: `${windSpeedFactor}s`,
@@ -1981,7 +2578,8 @@ export default function App() {
                       "--focus-transition": `${focusTransitionMs}ms`,
                     }}
                   >
-                  <g className="piece-flutter" style={{ animationDelay: `${i * -0.4}s`, transformOrigin: `${x}px ${y}px` }}>
+                  <g transform={`translate(${hangX} ${hangY})`}>
+                  <g className="piece-flutter" style={{ animationDelay: `${i * -0.4}s`, transformOrigin: `${x}px ${y}px`, ...(sockMotionActive ? { animation: "none" } : {}) }}>
                   <g transform={`translate(0 ${fallY})`}>
                   <g transform={`rotate(${pieceRot} ${x} ${y + GARMENT_ROT_PIVOT_Y})`}>
                   <g
@@ -1989,26 +2587,39 @@ export default function App() {
                     transform={`translate(${x} ${y}) scale(${Math.max(pinS, 0.001)}) translate(${-x} ${-y})`}
                     style={{ pointerEvents: "none" }}
                   >
-                    <g>
-                      <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="#C68A4E" />
-                      <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="none" stroke="#8A5A2C" strokeWidth="0.6" opacity="0.7" />
-                      <line x1={x - 19.4} y1={y - 5} x2={x - 19.4} y2={y + 5} stroke="#8A5A2C" strokeWidth="0.5" opacity="0.5" />
-                    </g>
-                    <g>
-                      <rect x={x + 16.8} y={y - 8} width="5.2" height="15" rx="2.4" fill="#C68A4E" />
-                      <rect x={x + 16.8} y={y - 8} width="5.2" height="15" rx="2.4" fill="none" stroke="#8A5A2C" strokeWidth="0.6" opacity="0.7" />
-                      <line x1={x + 19.4} y1={y - 5} x2={x + 19.4} y2={y + 5} stroke="#8A5A2C" strokeWidth="0.5" opacity="0.5" />
-                    </g>
+                    {pc.isSock ? (
+                      <g transform="translate(-60, -14)">
+                        <rect x="57.4" y="14" width="5.2" height="15" rx="2.4" fill="#C68A4E" />
+                        <rect x="57.4" y="14" width="5.2" height="15" rx="2.4" fill="none" stroke="#8A5A2C" strokeWidth="0.6" opacity="0.7" />
+                        <line x1="60" y1="17" x2="60" y2="27" stroke="#8A5A2C" strokeWidth="0.5" opacity="0.5" />
+                      </g>
+                    ) : (
+                      <>
+                        <g>
+                          <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="#C68A4E" />
+                          <rect x={x - 22} y={y - 8} width="5.2" height="15" rx="2.4" fill="none" stroke="#8A5A2C" strokeWidth="0.6" opacity="0.7" />
+                          <line x1={x - 19.4} y1={y - 5} x2={x - 19.4} y2={y + 5} stroke="#8A5A2C" strokeWidth="0.5" opacity="0.5" />
+                        </g>
+                        <g>
+                          <rect x={x + 16.8} y={y - 8} width="5.2" height="15" rx="2.4" fill="#C68A4E" />
+                          <rect x={x + 16.8} y={y - 8} width="5.2" height="15" rx="2.4" fill="none" stroke="#8A5A2C" strokeWidth="0.6" opacity="0.7" />
+                          <line x1={x + 19.4} y1={y - 5} x2={x + 19.4} y2={y + 5} stroke="#8A5A2C" strokeWidth="0.5" opacity="0.5" />
+                        </g>
+                      </>
+                    )}
                   </g>
 
-                  <g style={introComplete ? animationStyle : { transformOrigin: `${x}px ${y}px` }} className={introComplete ? "cloth-body" : undefined}>
+                  <g
+                    style={introComplete && !sockMotionActive ? animationStyle : { transformOrigin: `${x}px ${y}px` }}
+                    className={introComplete && !sockMotionActive ? "cloth-body" : undefined}
+                  >
                     <rect
-                      x={x - 42}
-                      y={y - 68}
-                      width={84}
-                      height={240}
+                      x={pc.isSock ? x - 32 : x - 42}
+                      y={pc.isSock ? y - 2 : y - 68}
+                      width={pc.isSock ? 42 : 84}
+                      height={pc.isSock ? 112 : 240}
                       fill="transparent"
-                      style={{ cursor: introComplete ? "pointer" : "default" }}
+                      style={{ cursor: introComplete && (sockRevealDone || !pc.isSock) ? "pointer" : "default" }}
                       onPointerEnter={() => {
                         if (!introComplete || projectFocusActive) return;
                         setHot(pc.id);
@@ -2020,6 +2631,10 @@ export default function App() {
                       onClick={(e) => {
                         if (!introComplete) return;
                         e.stopPropagation();
+                        if (pc.isSock) {
+                          if (sockRevealDone) setSockNoteOpen(true);
+                          return;
+                        }
                         if (selectedId === pc.id) {
                           setSelectedId(null);
                           return;
@@ -2029,8 +2644,10 @@ export default function App() {
                       }}
                     />
                     <g pointerEvents="none">
-                    {clothShape(pc, x, y, isHighlit, P, newType, currentSeasonKey, lampWarmth, projectFocusActive && !isSelected)}
-                    {showGarmentLabel && (() => {
+                    {pc.isSock
+                      ? sockShape(x, y, isHighlit, P)
+                      : clothShape(pc, x, y, isHighlit, P, newType, currentSeasonKey, lampWarmth, projectFocusActive && !isSelected)}
+                    {showGarmentLabel && !pc.isSock && (() => {
                       const labelW = Math.max(104, pc.title.length * 7.2 + 24);
                       const pillBg = isNight ? (lanternOn ? P.accent : "#F0C53A") : P.accent;
                       const labelText = isNight ? (lanternOn ? "#1B2247" : P.cloth) : P.cloth;
@@ -2062,6 +2679,7 @@ export default function App() {
                       );
                     })()}
                     </g>
+                  </g>
                   </g>
                   </g>
                   </g>
@@ -2371,7 +2989,9 @@ export default function App() {
           {projectFocusActive && focusCardPos && (() => {
             const item = pieces[focusedIndex];
             if (!item) return null;
-            const summary = item.summary || item.note;
+            const hidePlaygroundPeek = (projectViewOpen || projectViewClosing) && growCardOrigin && projectViewOpen && !projectViewClosing;
+            if (hidePlaygroundPeek) return null;
+
             const cardW = focusCardPos.width || 180;
             const titleSize = Math.max(9.5, cardW * 0.048) + 1;
             const bodySize = Math.max(11.5, cardW * 0.058) + 1;
@@ -2381,6 +3001,7 @@ export default function App() {
               : 5;
 
             const closeCard = () => {
+              setProjectViewOpen(false);
               setSelectedId(null);
               setHot(null);
             };
@@ -2394,8 +3015,11 @@ export default function App() {
 
             return (
               <div
+                ref={focusCardRef}
                 key={`focus-card-${item.id}`}
-                className="project-focus-card project-focus-card--compact"
+                className={`project-focus-card project-focus-card--compact${
+                  projectViewClosing ? " project-focus-card--handoff-return" : ""
+                }`}
                 style={{
                   position: "absolute",
                   left: focusCardPos.x,
@@ -2448,12 +3072,12 @@ export default function App() {
                       color: cardBodyInk,
                       transition: "color 0.45s ease",
                     }}>
-                      {summary}
+                      {item.summary || item.note}
                     </p>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <a
-                        href="#"
-                        onClick={(e) => e.preventDefault()}
+                      <button
+                        type="button"
+                        onClick={handleViewProject}
                         className="project-focus-btn project-focus-btn-primary"
                         style={{
                           fontFamily: MONO,
@@ -2461,11 +3085,14 @@ export default function App() {
                           padding: "6px 11px",
                           background: cardBtnBg,
                           color: cardBtnInk,
+                          border: "none",
+                          outline: "none",
+                          boxShadow: "none",
                           transition: "background 0.45s ease, color 0.45s ease",
                         }}
                       >
                         VIEW PROJECT →
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={closeCard}
@@ -2636,20 +3263,7 @@ export default function App() {
               return (
                 <button
                   key={key}
-                  onClick={() => {
-                    setCurrentSeasonKey(key);
-                    if (key !== "night") setLanternOn(false);
-                    if (key === "night") {
-                      setBirdGone(true);
-                    } else {
-                      setBirdGone(false);
-                      triggerBirdStartle();
-                    }
-                    if (key === "winter") {
-                      setShiver(true);
-                      setTimeout(() => setShiver(false), 470);
-                    }
-                  }}
+                  onClick={() => handleSeasonSelect(key)}
                   title={SEASONS[key].name}
                   aria-label={SEASONS[key].name}
                   style={{
@@ -2935,7 +3549,7 @@ export default function App() {
           </span>
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
             {nav.map((n) => (
-              <a key={n} href="#" onClick={(e) => e.preventDefault()}
+              <a key={n} href="#" onClick={(e) => { e.preventDefault(); handleEditorialNav(n === "CREATIVE WORK" ? "work" : n.toLowerCase()); }}
                 style={{
                   fontFamily: MONO,
                   fontSize: 11,
@@ -2956,9 +3570,220 @@ export default function App() {
         </div>
       </div>
 
+      {sockNoteOpen && (
+        <div
+          className="sock-note-scrim"
+          onClick={() => setSockNoteOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="sock-note-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="A note from the sock"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              fontFamily: BODY,
+              color: P.ink,
+              background: P.cloth,
+              borderColor: `${P.ink}12`,
+            }}
+          >
+            <button
+              type="button"
+              className="sock-note-close"
+              onClick={() => setSockNoteOpen(false)}
+              aria-label="Close note"
+              style={{ color: P.ink }}
+            >
+              <X size={14} strokeWidth={2.25} aria-hidden />
+            </button>
+            <p className="sock-note-text" style={{ fontFamily: HEADER, color: P.ink }}>
+              Thank you for coming.
+            </p>
+            <p className="sock-note-sign" style={{ fontFamily: MONO, color: `${P.ink}66` }}>
+              — from the line
+            </p>
+          </div>
+        </div>
+      )}
+
+      {(projectViewOpen || projectViewClosing) && projectFocusActive && growCardOrigin && (() => {
+        const item = pieces[focusedIndex];
+        if (!item) return null;
+        const sheetBg = isNight && lanternOn ? "#F5F0E6" : P.cloth;
+        const sheetInk = isNight && lanternOn ? "#1B2247" : P.ink;
+        const sheetBodyInk = isNight && lanternOn ? "#1B2247CC" : `${P.ink}CC`;
+        const seasonPalette = {
+          sky1: P.sky1,
+          sky2: P.sky2,
+          sky3: P.sky3,
+          sun: P.sun,
+          hill1: P.hill1,
+          hill2: P.hill2,
+          hill3: P.hill3,
+          isNight,
+        };
+        return (
+          <div className="project-view-frame">
+            <div
+              className={`project-view-scrim${
+                projectViewEntered ? " is-visible" : ""
+              }${projectViewClosing ? " is-closing" : ""}`}
+              style={{
+                background: "rgba(0, 0, 0, 0.025)",
+              }}
+              aria-hidden
+            />
+            <div
+              ref={projectViewSheetRef}
+              className={`project-grow-card${
+                projectViewEntered ? " is-expanded" : ""
+              }${projectViewSettled ? " is-settled" : ""
+              }${projectViewClosing ? " is-closing" : ""}`}
+              style={{
+                "--grow-from-top": `${growCardOrigin.top}px`,
+                "--grow-from-left": `${growCardOrigin.left}px`,
+                "--grow-from-width": `${growCardOrigin.width}px`,
+                "--grow-from-height": `${growCardOrigin.height}px`,
+                background: sheetBg,
+                color: sheetInk,
+                "--sheet-bg": sheetBg,
+                "--cs-accent": P.accent,
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onTransitionEnd={handleProjectViewSheetTransitionEnd}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${item.title} case study`}
+            >
+              <div className="project-grow-card-inner">
+                <div className="project-grow-card-body">
+                  <div className="project-grow-card-study">
+                    <div
+                      ref={studyScrollRef}
+                      className="project-view-sheet-scroll"
+                    >
+                      <div className="project-grow-card-toolbar">
+                        <button
+                          type="button"
+                          className="project-view-sheet-close project-grow-card-fold"
+                          onClick={closeProjectView}
+                          aria-label="Fold case study"
+                          style={{ color: sheetInk, borderColor: `${sheetInk}14` }}
+                        >
+                          <span>Fold</span>
+                          <X size={14} strokeWidth={2.25} aria-hidden />
+                        </button>
+                      </div>
+                      <ProjectCaseStudySheetContent
+                        key={item.id}
+                        item={item}
+                        ink={sheetInk}
+                        bodyInk={sheetBodyInk}
+                        accent={P.accent}
+                        cloth={P.cloth}
+                        clothTint={P.clothTint}
+                        hue={item.hue}
+                        meta={projectMeta(item)}
+                        projectIndex={portfolioPieces.findIndex((p) => p.id === item.id)}
+                        projects={portfolioPieces}
+                        onNav={handleEditorialNav}
+                        onProjectSelect={handleEditorialProjectSelect}
+                        layoutId={projectLayoutId}
+                        onLayoutChange={setProjectLayoutId}
+                        season={seasonPalette}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {(aboutViewOpen || aboutViewClosing) && (() => {
+        const sheetBg = isNight && lanternOn ? "#F5F0E6" : P.cloth;
+        const sheetInk = isNight && lanternOn ? "#1B2247" : P.ink;
+        const sheetBodyInk = isNight && lanternOn ? "#1B2247CC" : `${P.ink}CC`;
+        const seasonPalette = {
+          sky1: P.sky1,
+          sky2: P.sky2,
+          sky3: P.sky3,
+          sun: P.sun,
+          hill1: P.hill1,
+          hill2: P.hill2,
+          hill3: P.hill3,
+          isNight,
+        };
+        return (
+          <div className="project-view-frame">
+            <div
+              className={`project-view-scrim${
+                aboutViewEntered ? " is-visible" : ""
+              }${aboutViewClosing ? " is-closing" : ""}`}
+              style={{ background: "rgba(0, 0, 0, 0.025)" }}
+              onClick={closeAbout}
+              aria-hidden
+            />
+            <div
+              className={`page-overlay-sheet${
+                aboutViewEntered ? " is-entered" : ""
+              }${aboutViewClosing ? " is-closing" : ""}`}
+              style={{
+                background: sheetBg,
+                color: sheetInk,
+                "--sheet-bg": sheetBg,
+                "--cs-accent": P.accent,
+              }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="About Varna Das"
+            >
+              <div className="project-grow-card-inner">
+                <div className="project-grow-card-body">
+                  <div className="project-grow-card-study about-overlay-study">
+                    <div ref={aboutScrollRef} className="project-view-sheet-scroll">
+                      <div className="project-grow-card-toolbar">
+                        <button
+                          type="button"
+                          className="project-view-sheet-close project-grow-card-fold is-visible"
+                          onClick={closeAbout}
+                          aria-label="Fold about page"
+                          style={{ color: sheetInk, borderColor: `${sheetInk}14` }}
+                        >
+                          <span>Fold</span>
+                          <X size={14} strokeWidth={2.25} aria-hidden />
+                        </button>
+                      </div>
+                      <div className="case-study-sheet-content case-study-sheet-content--card">
+                        <AboutPage
+                          ink={sheetInk}
+                          bodyInk={sheetBodyInk}
+                          accent={P.accent}
+                          cloth={P.cloth}
+                          clothTint={P.clothTint}
+                          season={seasonPalette}
+                          layoutId={aboutLayoutId}
+                          onLayoutChange={setAboutLayoutId}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* CSS ANIMATIONS */}
       <style>{`
         .intro-active .sway-line.intro-rope-loading {
+          animation: none !important;
+        }
+        .sock-rope-drop {
           animation: none !important;
         }
         .intro-role-fade-up {
@@ -3143,6 +3968,67 @@ export default function App() {
           from { opacity: 0; }
           to   { opacity: 1; }
         }
+        .sock-note-scrim {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          background: rgba(0, 0, 0, 0.18);
+          animation: sockNoteIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .sock-note-card {
+          position: relative;
+          max-width: 320px;
+          width: 100%;
+          padding: 28px 32px 24px;
+          border-radius: 18px;
+          border: 1px solid transparent;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+          text-align: center;
+          animation: sockCardIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+        }
+        .sock-note-close {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border: none;
+          border-radius: 999px;
+          background: rgba(0, 0, 0, 0.04);
+          cursor: pointer;
+          transition: opacity 0.18s ease;
+        }
+        .sock-note-close:hover {
+          opacity: 0.72;
+        }
+        .sock-note-text {
+          margin: 0 0 12px;
+          font-size: clamp(1.35rem, 3vw, 1.65rem);
+          line-height: 1.35;
+          font-weight: 400;
+        }
+        .sock-note-sign {
+          margin: 0;
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        @keyframes sockNoteIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes sockCardIn {
+          from { opacity: 0; transform: translateY(12px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
         .garment-label {
           transition: opacity 0.2s ease;
         }
@@ -3152,6 +4038,2711 @@ export default function App() {
         }
         .project-focus-card--compact {
           transform: translate(-50%, -8px);
+        }
+        .project-focus-card--handoff-return {
+          pointer-events: none;
+          animation: focusCardReturnDrop 0.54s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
+        }
+        .project-focus-card--handoff-return .project-focus-card-sway {
+          animation: none;
+        }
+        .project-view-frame {
+          position: fixed;
+          inset: 0;
+          z-index: 40;
+          padding: 10px;
+          box-sizing: border-box;
+          pointer-events: none;
+        }
+        .project-grow-card {
+          position: fixed;
+          z-index: 2;
+          isolation: isolate;
+          -webkit-font-smoothing: subpixel-antialiased;
+          top: var(--grow-from-top);
+          left: var(--grow-from-left);
+          width: var(--grow-from-width);
+          height: var(--grow-from-height);
+          border-radius: 16px;
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.08);
+          overflow: hidden;
+          pointer-events: auto;
+          transform: none;
+          opacity: 1;
+          transition:
+            top 0.58s cubic-bezier(0.22, 1, 0.36, 1),
+            left 0.58s cubic-bezier(0.22, 1, 0.36, 1),
+            width 0.58s cubic-bezier(0.22, 1, 0.36, 1),
+            height 0.58s cubic-bezier(0.22, 1, 0.36, 1),
+            transform 0.58s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 0.45s ease;
+        }
+        .project-grow-card.is-expanded {
+          top: 10px;
+          left: 10px;
+          width: calc(100vw - 20px);
+          height: calc(100vh - 20px);
+          transform: none;
+          border-radius: 16px;
+          box-shadow: 0 16px 56px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.04);
+        }
+        .project-grow-card.is-expanded.is-settled {
+          transition: box-shadow 0.3s ease;
+        }
+        .project-grow-card-inner {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          min-height: 0;
+        }
+        .project-grow-card-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 6;
+          display: flex;
+          justify-content: flex-end;
+          padding: 12px 20px 8px;
+          margin-bottom: 0;
+          background: transparent;
+          pointer-events: none;
+        }
+        .project-grow-card-fold {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 8px 14px 8px 12px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          background: rgba(255, 255, 255, 0.88);
+          cursor: pointer;
+          font-family: ${MONO};
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.95px;
+          text-transform: uppercase;
+          white-space: nowrap;
+          pointer-events: auto;
+          opacity: 0;
+          transition: opacity 0.28s ease 0.08s, background 0.2s ease, border-color 0.2s ease;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        }
+        .project-grow-card.is-expanded .project-grow-card-fold {
+          opacity: 1;
+        }
+        .project-grow-card-fold:hover {
+          opacity: 0.84;
+        }
+        .project-grow-card-body {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .project-grow-card-summary {
+          margin: 0;
+          padding: 0 16px 12px;
+          font-size: 13px;
+          line-height: 1.45;
+          flex-shrink: 0;
+          opacity: 1;
+          max-height: 140px;
+          overflow: hidden;
+          transition:
+            opacity 0.18s ease,
+            max-height 0.24s ease,
+            padding 0.2s ease;
+        }
+        /* Hide peek summary as soon as the card expands — editorial content replaces it */
+        .project-grow-card.is-expanded .project-grow-card-summary {
+          opacity: 0;
+          max-height: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          pointer-events: none;
+        }
+        .project-grow-card-study {
+          flex: 0;
+          max-height: 0;
+          min-height: 0;
+          overflow: hidden;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .project-grow-card.is-expanded .project-grow-card-study {
+          flex: 1;
+          min-height: 0;
+          max-height: none;
+          display: flex;
+          flex-direction: column;
+          visibility: visible;
+          pointer-events: auto;
+          opacity: 1;
+        }
+        .project-grow-card.is-closing .project-grow-card-study {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transition: opacity 0.14s ease, visibility 0.14s ease;
+        }
+        .project-grow-card.is-closing .project-grow-card-summary {
+          opacity: 1;
+          max-height: 140px;
+          padding: 0 16px 12px;
+          transition:
+            opacity 0.28s ease 0.06s,
+            max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.04s,
+            padding 0.28s ease 0.04s;
+        }
+        .project-grow-card.is-closing {
+          pointer-events: none;
+          transition:
+            top 0.01s linear,
+            left 0.01s linear,
+            width 0.01s linear,
+            height 0.01s linear,
+            transform 0.58s cubic-bezier(0.55, 0, 1, 0.42),
+            opacity 0.36s ease 0.04s,
+            box-shadow 0.3s ease;
+        }
+        .project-grow-card.is-closing.is-expanded {
+          transform: translateY(72vh);
+          opacity: 0;
+        }
+        .project-grow-card.is-closing .project-grow-card-fold {
+          opacity: 0;
+          transform: translateY(-6px);
+          transition: opacity 0.14s ease, transform 0.16s ease;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .project-grow-card,
+          .project-grow-card-summary,
+          .project-grow-card-study,
+          .project-grow-card-fold,
+          .project-view-sheet-scroll,
+          .cs-scroll-reveal {
+            animation: none !important;
+            transition-duration: 0.01ms !important;
+          }
+          .cs-scroll-reveal {
+            opacity: 1 !important;
+            filter: none !important;
+            animation: none !important;
+          }
+          .project-grow-card.is-expanded .project-grow-card-study {
+            opacity: 1;
+            visibility: visible;
+          }
+        }
+        .project-view-scrim {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.46s ease;
+        }
+        .project-view-scrim.is-visible {
+          opacity: 1;
+          transition: opacity 0.4s ease 0.06s;
+        }
+        .project-view-scrim.is-closing {
+          opacity: 0;
+          transition: opacity 0.34s ease 0.04s;
+        }
+        .project-view-sheet-close {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 8px 14px 8px 11px;
+          border: none;
+          border-radius: 999px;
+          cursor: pointer;
+          flex-shrink: 0;
+          font-family: ${MONO};
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .project-view-sheet-close:hover {
+          opacity: 0.88;
+        }
+        .project-view-sheet-close:active {
+          transform: scale(0.98);
+        }
+        .project-view-sheet-scroll {
+          flex: 1 1 auto;
+          min-height: 0;
+          height: 100%;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 0 0 48px;
+          -webkit-overflow-scrolling: touch;
+          scroll-behavior: auto;
+          overscroll-behavior: contain;
+          filter: none;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+        .project-view-sheet-scroll,
+        .project-view-sheet-scroll * {
+          filter: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+        }
+        .layout-tab-bar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin: 0 0 28px;
+          padding-bottom: 20px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .layout-tab {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+          padding: 8px 14px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: opacity 0.18s ease, background 0.18s ease;
+        }
+        .layout-tab:hover { opacity: 0.82; }
+        .layout-tab-label {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .layout-tab-credit {
+          font-size: 9px;
+          letter-spacing: 0.06em;
+        }
+        .about-page-wrap,
+        .project-page-wrap { width: 100%; min-height: 100%; }
+        .about-layout--grid,
+        .project-layout--grid {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          min-height: 100%;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+        }
+        .project-layout--grid .studio-topbar--light {
+          padding: 8px 40px 24px;
+          flex-shrink: 0;
+        }
+        .studio-topbar {
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          align-items: center;
+          gap: 20px;
+          padding: 8px 0 32px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .studio-topbar--light {
+          border-bottom-color: rgba(0, 0, 0, 0.07);
+        }
+        .studio-mark {
+          border: none;
+          background: none;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          cursor: pointer;
+        }
+        .studio-meta {
+          margin: 0;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          text-align: center;
+        }
+        .studio-nav { display: flex; gap: 18px; }
+        .studio-nav button {
+          border: none;
+          background: none;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          cursor: pointer;
+        }
+        .studio-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 32px;
+          padding: 40px 0;
+        }
+        .studio-col-label {
+          margin: 0 0 20px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .studio-name {
+          margin: 0 0 20px;
+          font-size: clamp(2rem, 4vw, 2.75rem);
+          line-height: 1;
+        }
+        .studio-bio p,
+        .frame-bio p {
+          margin: 0 0 1em;
+          font-size: 15px;
+          line-height: 1.65;
+        }
+        .studio-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 18px;
+        }
+        .studio-list li { display: grid; gap: 4px; }
+        .studio-list span:first-child { font-size: 10px; letter-spacing: 0.08em; }
+        .studio-marquee {
+          overflow: hidden;
+          padding: 28px 0 8px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .studio-marquee span {
+          display: block;
+          font-size: clamp(2.5rem, 6vw, 4.5rem);
+          line-height: 1;
+          letter-spacing: -0.03em;
+          white-space: nowrap;
+          animation: studioMarquee 18s linear infinite;
+        }
+        @keyframes studioMarquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-28%); }
+        }
+        .about-portrait--studio {
+          aspect-ratio: 3 / 4;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 2px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+        }
+        .project-studio-split {
+          display: grid;
+          grid-template-columns: clamp(260px, 30vw, 360px) minmax(0, 1fr);
+          gap: 0;
+          flex: 1;
+          align-items: stretch;
+          min-height: calc(100vh - 200px);
+        }
+        .project-studio-rail {
+          padding: 40px 32px 48px 40px;
+          border-right: 1px solid;
+          position: sticky;
+          top: 0;
+          align-self: stretch;
+          min-height: 100%;
+        }
+        .project-studio-rail h1 {
+          margin: 0 0 16px;
+          font-size: clamp(1.75rem, 3vw, 2.25rem);
+          line-height: 1.05;
+        }
+        .project-studio-rail > p {
+          margin: 0 0 24px;
+          font-size: 15px;
+          line-height: 1.55;
+        }
+        .project-studio-meta {
+          margin: 0 0 28px;
+          display: grid;
+          gap: 16px;
+        }
+        .project-studio-meta dt {
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+        .project-studio-meta dd { margin: 0; font-size: 14px; }
+        .project-studio-main {
+          background: #F3F3F1;
+          padding: 40px 48px 80px;
+          min-height: 100%;
+        }
+        .studio-body { width: 100%; max-width: none; }
+        .studio-body .cs-visual { margin: 0 0 40px; max-width: none; }
+        .studio-body .cs-visual-frame { border-radius: 10px; max-width: none; }
+        .studio-section { margin-bottom: 48px; }
+        .studio-section-num {
+          display: block;
+          margin-bottom: 8px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+        }
+        .studio-section-title {
+          margin: 0 0 16px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .studio-section-body {
+          margin: 0;
+          font-size: 16px;
+          line-height: 1.7;
+          max-width: 68ch;
+        }
+        .studio-section-body--gap { margin-top: 24px; }
+        .studio-quote {
+          margin: 0;
+          padding-left: 20px;
+          border-left: 3px solid;
+          font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+          line-height: 1.35;
+          max-width: 48ch;
+        }
+        .studio-steps {
+          list-style: none;
+          margin: 20px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 0;
+        }
+        .studio-steps li {
+          display: grid;
+          grid-template-columns: 32px 1fr;
+          gap: 12px;
+          padding: 14px 0;
+          border-top: 1px solid;
+          font-size: 15px;
+          line-height: 1.55;
+        }
+        .studio-metrics {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          margin-top: 24px;
+        }
+        .studio-metric {
+          padding: 20px;
+          border: 1px solid;
+          border-radius: 8px;
+        }
+        .studio-metric-value {
+          font-size: clamp(1.5rem, 2.5vw, 2rem);
+          line-height: 1;
+        }
+        .studio-metric-label {
+          margin-top: 8px;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        .studio-project-num { font-size: 11px; letter-spacing: 0.1em; }
+        .domini-about-split {
+          display: grid;
+          grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+          gap: 40px;
+          padding: 40px 0 48px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .about-portrait--domini {
+          aspect-ratio: 4 / 5;
+          border-radius: 2px;
+          border: 1px solid transparent;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .domini-about-kicker {
+          margin: 0 0 12px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .domini-about-title {
+          margin: 0 0 24px;
+          font-size: clamp(2rem, 4vw, 3rem);
+          line-height: 1.05;
+        }
+        .domini-about-bio {
+          font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+          line-height: 1.65;
+        }
+        .domini-about-columns {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          padding: 40px 0;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .about-contact-form {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .about-contact-field {
+          flex: 1 1 140px;
+          padding: 12px 18px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          font-size: 14px;
+          background: transparent;
+        }
+        .about-contact-submit {
+          padding: 12px 22px;
+          border: none;
+          border-radius: 999px;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+        .about-contact-note { margin: 12px 0 0; font-size: 14px; }
+        .about-layout--chromatic,
+        .project-layout--chromatic {
+          width: 100%;
+          margin: 0;
+          padding: 0 40px 64px;
+          min-height: 100%;
+          box-sizing: border-box;
+        }
+        .chromatic-topbar {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          padding: 12px 0 32px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .chromatic-topbar button {
+          border: none;
+          background: none;
+          cursor: pointer;
+          justify-self: start;
+        }
+        .chromatic-topbar button:last-child { justify-self: end; }
+        .chromatic-topbar span { justify-self: center; }
+        .chromatic-hero h1,
+        .project-chromatic-hero h1 {
+          margin: 0 0 12px;
+          font-size: clamp(2.5rem, 6vw, 4.5rem);
+          line-height: 0.95;
+          letter-spacing: -0.03em;
+        }
+        .chromatic-columns {
+          display: grid;
+          grid-template-columns: 1fr minmax(180px, 240px) 1fr;
+          gap: 32px;
+          padding-top: 24px;
+        }
+        .chromatic-columns h2 {
+          margin: 0 0 20px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .chromatic-list,
+        .chromatic-services {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 16px;
+        }
+        .chromatic-list li { display: grid; gap: 4px; }
+        .chromatic-portrait-wrap { text-align: center; }
+        .chromatic-portrait {
+          aspect-ratio: 3 / 4;
+          background: rgba(0, 0, 0, 0.12);
+          border-radius: 2px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+          margin-bottom: 12px;
+        }
+        .project-chromatic-hero { padding-bottom: 24px; }
+        .project-chromatic-meta {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 24px;
+          padding-bottom: 28px;
+        }
+        .project-chromatic-meta div { display: grid; gap: 6px; }
+        .project-chromatic-meta span:first-child {
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .project-chromatic-card {
+          margin: 0 -48px;
+          padding: 0 48px 64px;
+          border-radius: 16px 16px 0 0;
+        }
+        .about-layout--frame,
+        .project-layout--frame {
+          width: 100%;
+          margin: 0;
+          padding: 20px 40px;
+          min-height: 100%;
+          box-sizing: border-box;
+        }
+        .frame-card {
+          border-radius: 24px;
+          padding: 32px 40px 48px;
+          min-height: calc(100vh - 120px);
+        }
+        .frame-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 24px;
+          margin-bottom: 40px;
+        }
+        .frame-display {
+          font-size: clamp(3.5rem, 10vw, 6rem);
+          line-height: 0.85;
+          letter-spacing: -0.04em;
+        }
+        .frame-nav {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          text-align: right;
+        }
+        .frame-nav a {
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          text-decoration: none;
+        }
+        .frame-body {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+          gap: 40px;
+          align-items: end;
+        }
+        .frame-kicker {
+          margin: 0 0 16px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .frame-title {
+          margin: 0 0 24px;
+          font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+          line-height: 1.15;
+        }
+        .frame-portrait-ring {
+          position: relative;
+          display: flex;
+          justify-content: center;
+        }
+        .frame-portrait {
+          width: 200px;
+          height: 200px;
+          border-radius: 50%;
+          background: rgba(0, 0, 0, 0.05);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+        }
+        .frame-cta {
+          position: absolute;
+          top: 0;
+          right: -8px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-size: 9px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .frame-project-head { margin-bottom: 24px; }
+        .frame-project-num {
+          display: block;
+          margin-bottom: 10px;
+          font-size: 11px;
+          letter-spacing: 0.1em;
+        }
+        .frame-project-title {
+          margin: 0 0 16px;
+          font-size: clamp(2rem, 4.5vw, 3.25rem);
+          line-height: 1.02;
+        }
+        .frame-project-lead {
+          margin: 0;
+          font-size: 1.05rem;
+          line-height: 1.55;
+        }
+        .frame-project-meta {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 140px));
+          gap: 24px;
+          margin-bottom: 28px;
+          padding-bottom: 24px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .frame-project-meta div { display: grid; gap: 6px; }
+        .frame-project-meta span:first-child {
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .about-page-wrap--grid .layout-tab-bar,
+        .project-page-wrap--grid .layout-tab-bar {
+          border-bottom-color: rgba(0, 0, 0, 0.07);
+        }
+        .about-layout--grid .studio-topbar,
+        .about-layout--grid .studio-grid,
+        .about-layout--grid .studio-marquee {
+          padding-left: 40px;
+          padding-right: 40px;
+        }
+        .about-layout--editorial,
+        .project-layout--editorial {
+          width: 100%;
+          margin: 0;
+          padding: 0 40px 64px;
+          box-sizing: border-box;
+        }
+        .ed-spread-chapter-row {
+          padding: 0 0 32px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+          margin-bottom: 40px;
+        }
+        .ed-spread-chapter-row .ed-spread-chapters {
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: 8px 24px;
+        }
+        .magazine-body { width: 100%; }
+        .magazine-visual--hero .cs-visual { margin: 0 0 48px; }
+        .magazine-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
+          gap: 40px;
+          margin-bottom: 56px;
+          align-items: start;
+        }
+        .magazine-row--reverse { grid-template-columns: 1fr; }
+        .magazine-num {
+          display: block;
+          margin-bottom: 10px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+        }
+        .magazine-title {
+          margin: 0 0 16px;
+          font-size: clamp(1.75rem, 3vw, 2.5rem);
+          line-height: 1.05;
+        }
+        .magazine-copy p {
+          margin: 0;
+          font-size: 16px;
+          line-height: 1.7;
+        }
+        .magazine-steps {
+          list-style: none;
+          margin: 20px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 12px;
+        }
+        .magazine-steps li {
+          display: grid;
+          grid-template-columns: 28px 1fr;
+          gap: 10px;
+          font-size: 15px;
+          line-height: 1.55;
+        }
+        .magazine-pullquote {
+          margin: 0 0 56px;
+          padding: 40px 0 40px 24px;
+          border-left: 4px solid;
+          font-size: clamp(1.5rem, 3vw, 2.25rem);
+          line-height: 1.35;
+        }
+        .magazine-impact { margin-bottom: 48px; }
+        .magazine-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 20px;
+          margin-top: 24px;
+        }
+        .magazine-stat {
+          padding: 20px;
+          border: 1px solid;
+          border-radius: 8px;
+        }
+        .project-layout--spread,
+        .about-layout--spread {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .spread-project-bar {
+          padding: 8px 40px 32px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .spread-project-bar button {
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          margin-bottom: 20px;
+        }
+        .spread-project-title {
+          margin: 8px 0 16px;
+          font-size: clamp(2.5rem, 6vw, 4.5rem);
+          line-height: 0.95;
+          letter-spacing: -0.03em;
+        }
+        .spread-project-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px 28px;
+          margin-bottom: 16px;
+          font-size: 10px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .spread-project-lead {
+          margin: 0 0 20px;
+          max-width: 60ch;
+          font-size: 1.05rem;
+          line-height: 1.6;
+        }
+        .spread-project-chapters .ed-spread-chapters {
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: 8px 20px;
+        }
+        .spread-study { width: 100%; }
+        .spread-band { width: 100%; }
+        .spread-band--visual {
+          padding: 0;
+          background: #EFEFED;
+        }
+        .spread-band--visual .cs-visual { margin: 0; }
+        .spread-band--visual .cs-visual-frame { border-radius: 0; }
+        .spread-band--text,
+        .spread-band--quote,
+        .spread-band--stats {
+          padding: 48px 40px;
+        }
+        .spread-band--quote {
+          background: rgba(0, 0, 0, 0.03);
+        }
+        .spread-num {
+          display: block;
+          margin-bottom: 12px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+        }
+        .spread-title {
+          margin: 0 0 16px;
+          font-size: clamp(1.75rem, 3.5vw, 2.75rem);
+          line-height: 1.05;
+        }
+        .spread-body {
+          margin: 0;
+          max-width: 62ch;
+          font-size: 16px;
+          line-height: 1.7;
+        }
+        .spread-quote {
+          margin: 0;
+          font-size: clamp(1.5rem, 3vw, 2.25rem);
+          line-height: 1.35;
+          max-width: 28ch;
+        }
+        .spread-steps {
+          list-style: none;
+          margin: 20px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 10px;
+          max-width: 62ch;
+        }
+        .spread-steps li {
+          display: grid;
+          grid-template-columns: 28px 1fr;
+          gap: 10px;
+          font-size: 15px;
+          line-height: 1.55;
+        }
+        .spread-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 20px;
+          margin-top: 28px;
+          max-width: 720px;
+        }
+        .spread-stat-value {
+          font-size: clamp(1.75rem, 3vw, 2.25rem);
+          line-height: 1;
+        }
+        .spread-stat-label {
+          margin-top: 8px;
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          opacity: 0.7;
+        }
+        .spread-about-head {
+          padding: 8px 40px 32px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .spread-about-head button {
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          margin-bottom: 24px;
+        }
+        .spread-about-name {
+          margin: 0 0 8px;
+          font-size: clamp(3rem, 8vw, 5.5rem);
+          line-height: 0.92;
+          letter-spacing: -0.04em;
+        }
+        .spread-about-role {
+          margin: 0 0 16px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .spread-about-email {
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-decoration: none;
+        }
+        .spread-about-bio {
+          padding: 40px;
+          display: grid;
+          gap: 1.2em;
+          font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+          line-height: 1.65;
+          max-width: 72ch;
+        }
+        .spread-about-table {
+          padding: 0 40px 64px;
+          display: grid;
+          gap: 40px;
+        }
+        .spread-about-table h2 {
+          margin: 0 0 16px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .spread-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .spread-table td {
+          padding: 14px 16px 14px 0;
+          border-bottom: 1px solid;
+          vertical-align: top;
+        }
+        .spread-table td:first-child { width: 120px; }
+        .ed-spread-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 0 28px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .ed-spread-bar button {
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .ed-spread-bar-links { display: flex; gap: 20px; }
+        .ed-spread-hero {
+          margin: 0 -40px;
+          padding: 48px 40px 56px;
+        }
+        .ed-spread-hero-kicker {
+          margin: 0 0 16px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          opacity: 0.72;
+        }
+        .ed-spread-hero-name,
+        .ed-spread-hero-title {
+          margin: 0;
+          font-size: clamp(3.5rem, 9vw, 6.5rem);
+          line-height: 0.92;
+          letter-spacing: -0.04em;
+          max-width: 12ch;
+        }
+        .ed-spread-hero-num {
+          display: block;
+          margin-bottom: 12px;
+          font-size: 11px;
+          letter-spacing: 0.12em;
+          opacity: 0.7;
+        }
+        .ed-spread-hero-lead {
+          margin: 20px 0 0;
+          max-width: 52ch;
+          font-size: clamp(1rem, 1.8vw, 1.2rem);
+          line-height: 1.55;
+          opacity: 0.9;
+        }
+        .ed-spread-hero-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 28px;
+        }
+        .ed-spread-tag {
+          padding: 8px 14px;
+          border: 1px solid;
+          border-radius: 999px;
+          font-size: 9px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .ed-spread-main {
+          display: grid;
+          grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+          gap: 48px;
+          padding-top: 48px;
+        }
+        .ed-spread-aside { position: sticky; top: 24px; align-self: start; }
+        .ed-spread-portrait {
+          aspect-ratio: 4 / 5;
+          border: 1px solid;
+          border-radius: 2px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+          margin-bottom: 28px;
+        }
+        .ed-spread-contact-lead {
+          margin: 0 0 12px;
+          font-size: 1.25rem;
+          line-height: 1.35;
+        }
+        .ed-spread-contact a {
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-decoration: none;
+        }
+        .ed-spread-bio-p {
+          margin: 0 0 1.4em;
+          font-size: clamp(1.2rem, 2.2vw, 1.65rem);
+          line-height: 1.55;
+        }
+        .ed-spread-timeline {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          margin-top: 48px;
+          padding-top: 40px;
+          border-top: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .ed-spread-timeline h2 {
+          margin: 0 0 20px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .ed-spread-timeline-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 0;
+        }
+        .ed-spread-timeline-list li {
+          display: grid;
+          gap: 4px;
+          padding: 18px 0;
+          border-bottom: 1px solid;
+        }
+        .ed-spread-timeline-role { font-size: 1.1rem; line-height: 1.2; }
+        .ed-spread-project-body {
+          display: grid;
+          grid-template-columns: 160px minmax(0, 1fr);
+          gap: 32px;
+          padding-top: 40px;
+        }
+        .ed-spread-project-rail {
+          position: sticky;
+          top: 24px;
+          align-self: start;
+        }
+        .ed-spread-chapters {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .ed-spread-chapter {
+          display: grid;
+          grid-template-columns: 28px 1fr;
+          gap: 8px;
+          text-decoration: none;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .chrom-immersion-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0 24px;
+        }
+        .chrom-immersion-bar button {
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .chrom-immersion-name {
+          margin: 0;
+          font-size: clamp(4rem, 16vw, 11rem);
+          line-height: 0.82;
+          letter-spacing: -0.05em;
+          text-transform: uppercase;
+        }
+        .chrom-immersion-name-line2 {
+          display: block;
+          margin-left: clamp(2rem, 12vw, 8rem);
+        }
+        .chrom-immersion-role {
+          margin: 16px 0 32px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          opacity: 0.72;
+        }
+        .chrom-immersion-portrait-ring {
+          display: flex;
+          justify-content: center;
+          margin: 0 0 40px;
+        }
+        .chrom-immersion-portrait {
+          width: min(220px, 42vw);
+          aspect-ratio: 1;
+          border-radius: 50%;
+          background: rgba(0, 0, 0, 0.14);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+        }
+        .chrom-immersion-bio {
+          display: grid;
+          gap: 20px;
+          max-width: 680px;
+          margin-bottom: 40px;
+        }
+        .chrom-immersion-bio-block {
+          margin: 0;
+          font-size: clamp(1rem, 1.8vw, 1.2rem);
+          line-height: 1.65;
+          padding: 20px 24px;
+          border-radius: 4px;
+          background: rgba(255, 255, 255, 0.08);
+        }
+        .chrom-immersion-scroll {
+          overflow-x: auto;
+          margin: 0 -48px 32px;
+          padding: 0 48px 8px;
+          -webkit-overflow-scrolling: touch;
+        }
+        .chrom-immersion-scroll-track {
+          display: flex;
+          gap: 16px;
+          width: max-content;
+        }
+        .chrom-immersion-card {
+          width: 240px;
+          padding: 20px;
+          border: 1px solid;
+          border-radius: 8px;
+          display: grid;
+          gap: 8px;
+        }
+        .chrom-immersion-services {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px 28px;
+          margin-bottom: 40px;
+        }
+        .chrom-immersion-service {
+          font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+          line-height: 1.1;
+        }
+        .chrom-immersion-service::before { content: "— "; opacity: 0.5; }
+        .chrom-immersion-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          padding-top: 28px;
+          border-top: 1px solid;
+        }
+        .chrom-immersion-footer p {
+          margin: 0;
+          font-size: clamp(1.5rem, 3vw, 2.25rem);
+        }
+        .chrom-immersion-footer a {
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-decoration: none;
+        }
+        .chrom-project-title {
+          margin: 0 0 16px;
+          font-size: clamp(3rem, 10vw, 5.5rem);
+          line-height: 0.9;
+          letter-spacing: -0.04em;
+        }
+        .chrom-project-lead {
+          margin: 0 0 24px;
+          max-width: 56ch;
+          font-size: 1.1rem;
+          line-height: 1.55;
+          opacity: 0.88;
+        }
+        .chrom-project-meta-pills {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 32px;
+        }
+        .chrom-project-pill {
+          padding: 8px 14px;
+          border: 1px solid;
+          border-radius: 999px;
+          font-size: 9px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .chrom-study { margin: 0 -48px; }
+        .chrom-panel {
+          margin: 0 0 2px;
+          padding: 40px 48px;
+        }
+        .chrom-panel-num {
+          display: block;
+          margin-bottom: 12px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+        }
+        .chrom-panel-title {
+          margin: 0 0 16px;
+          font-size: clamp(1.75rem, 4vw, 2.5rem);
+          line-height: 1.05;
+        }
+        .chrom-panel-body {
+          margin: 0;
+          max-width: 58ch;
+          font-size: 1.05rem;
+          line-height: 1.65;
+        }
+        .chrom-panel--quote { padding: 56px 48px; }
+        .chrom-quote {
+          margin: 0;
+          font-size: clamp(1.75rem, 4vw, 2.75rem);
+          line-height: 1.25;
+          max-width: 22ch;
+        }
+        .chrom-steps {
+          list-style: none;
+          margin: 24px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 0;
+        }
+        .chrom-steps li {
+          display: grid;
+          grid-template-columns: 36px 1fr;
+          gap: 12px;
+          padding: 16px 0;
+          border-top: 1px solid;
+          font-size: 1rem;
+          line-height: 1.5;
+        }
+        .chrom-bleed { margin: 0 0 2px; }
+        .chrom-bleed .cs-visual-frame { border-radius: 0; }
+        .chrom-bleed--inset { padding: 0 48px 2px; }
+        .chrom-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 20px;
+          margin-top: 28px;
+        }
+        .chrom-stat {
+          padding: 20px;
+          border: 1px solid;
+          border-radius: 8px;
+        }
+        .chrom-stat-value {
+          font-size: clamp(1.75rem, 3vw, 2.25rem);
+          line-height: 1;
+        }
+        .chrom-stat-label {
+          margin-top: 8px;
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          opacity: 0.7;
+        }
+        .chrom-dock {
+          position: sticky;
+          bottom: 0;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          padding: 16px 0 8px;
+          margin-top: 24px;
+          backdrop-filter: blur(8px);
+        }
+        .chrom-dock-link {
+          padding: 10px 16px;
+          border: 1px solid;
+          border-radius: 999px;
+          text-decoration: none;
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .frame-stage {
+          position: relative;
+          width: 100%;
+          border-radius: 28px;
+          padding: 36px 40px 56px;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+        .frame-stage-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 24px;
+          margin-bottom: 36px;
+        }
+        .frame-stage-head button {
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .frame-stage-display {
+          font-size: clamp(4rem, 12vw, 7rem);
+          line-height: 0.82;
+          letter-spacing: -0.04em;
+        }
+        .frame-stage-intro {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+          gap: 28px;
+          align-items: center;
+          margin-bottom: 28px;
+        }
+        .frame-bubble {
+          border: 1px solid;
+          border-radius: 24px;
+          padding: 24px 28px;
+        }
+        .frame-bubble--lg { border-radius: 32px; }
+        .frame-bubble-kicker {
+          margin: 0 0 10px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .frame-bubble-title {
+          margin: 0;
+          font-size: clamp(1.5rem, 3vw, 2.25rem);
+          line-height: 1.15;
+        }
+        .frame-bubble-row {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          margin-bottom: 28px;
+        }
+        .frame-bubble--sm p { margin: 0; font-size: 15px; line-height: 1.6; }
+        .frame-bubble--tilt-0 { transform: rotate(-1.5deg); }
+        .frame-bubble--tilt-1 { transform: rotate(1deg); }
+        .frame-bubble--tilt-2 { transform: rotate(-0.5deg); }
+        .frame-orbit {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 220px;
+        }
+        .frame-orbit-ring {
+          position: absolute;
+          width: 200px;
+          height: 200px;
+          border: 2px dashed;
+          border-radius: 50%;
+        }
+        .frame-orbit-photo {
+          width: 140px;
+          height: 140px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 2.5rem;
+        }
+        .frame-orbit-sticker {
+          position: absolute;
+          top: 12px;
+          right: 0;
+          padding: 10px 14px;
+          border-radius: 999px;
+          text-decoration: none;
+          font-size: 9px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          transform: rotate(8deg);
+        }
+        .frame-chip-rail {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 24px;
+        }
+        .frame-career-chip {
+          padding: 10px 16px;
+          border-radius: 999px;
+          font-size: 9px;
+          letter-spacing: 0.06em;
+        }
+        .frame-study-cards {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .frame-study-card {
+          padding: 20px;
+          border: 1px solid;
+          border-radius: 20px;
+          display: grid;
+          gap: 6px;
+        }
+        .frame-watermark {
+          position: absolute;
+          top: 40px;
+          right: 24px;
+          font-size: clamp(8rem, 20vw, 14rem);
+          line-height: 1;
+          pointer-events: none;
+          user-select: none;
+        }
+        .frame-project-eyebrow {
+          display: block;
+          margin-bottom: 10px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .frame-project-hero-title {
+          margin: 0;
+          font-size: clamp(2rem, 5vw, 3.5rem);
+          line-height: 1.02;
+        }
+        .frame-project-hero-lead {
+          margin: 0 0 20px;
+          font-size: 1.05rem;
+          line-height: 1.55;
+        }
+        .frame-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+        .frame-chip {
+          padding: 8px 14px;
+          border: 1px solid;
+          border-radius: 999px;
+          text-decoration: none;
+          font-size: 9px;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+        .frame-hero-visual { margin-bottom: 24px; }
+        .frame-hero-visual .cs-visual-frame { border-radius: 20px; }
+        .frame-bento {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+        }
+        .frame-tile {
+          border: 1px solid;
+          border-radius: 22px;
+          padding: 24px;
+        }
+        .frame-tile--span2 { grid-column: span 2; }
+        .frame-tile--quote { border-radius: 28px; }
+        .frame-tile--visual { padding: 0; border: none; background: transparent; }
+        .frame-tile--visual .cs-visual { margin: 0; }
+        .frame-tile--visual .cs-visual-frame { border-radius: 20px; }
+        .frame-tile-num {
+          display: block;
+          margin-bottom: 10px;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+        }
+        .frame-tile-title {
+          margin: 0 0 12px;
+          font-size: 1.5rem;
+          line-height: 1.1;
+        }
+        .frame-tile-body {
+          margin: 0;
+          font-size: 15px;
+          line-height: 1.65;
+        }
+        .frame-tile-quote {
+          margin: 0;
+          font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+          line-height: 1.35;
+        }
+        .frame-tile-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 12px;
+        }
+        .frame-tile-list li {
+          display: grid;
+          grid-template-columns: 28px 1fr;
+          gap: 8px;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        .frame-stat-pills {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 20px;
+        }
+        .frame-stat-pill {
+          padding: 16px 20px;
+          border-radius: 18px;
+          display: grid;
+          gap: 4px;
+        }
+        .frame-stat-pill-value { font-size: 1.5rem; line-height: 1; }
+        .frame-stat-pill-label {
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          opacity: 0.85;
+        }
+        .case-study-sheet-content {
+          width: 100%;
+          max-width: none;
+          margin: 0;
+          padding: 0 48px 80px;
+          box-sizing: border-box;
+        }
+        .case-study-sheet-content--fill {
+          padding: 0;
+        }
+        .case-study-sheet-content--card {
+          padding: 0;
+        }
+        .layout-tab-bar--inset {
+          margin: 0;
+          padding: 12px 40px 20px;
+        }
+        .layout-tab-bar--card {
+          margin: 0;
+          padding: 8px 24px 14px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .project-page-wrap--card {
+          padding: 0 0 28px;
+        }
+        .project-layout--line,
+        .project-layout--fold,
+        .project-layout--sky,
+        .project-layout--hills {
+          width: 100%;
+          margin: 0;
+        }
+        .motif-rope-sway {
+          animation: lineSway 5.2s ease-in-out infinite;
+          transform-origin: center;
+        }
+        .motif-garment-swatch {
+          position: relative;
+          width: 44px;
+          height: 52px;
+          border-radius: 4px;
+          border: 1px solid;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+        .motif-garment-swatch-inner {
+          position: absolute;
+          inset: 0;
+        }
+        .motif-garment-pin {
+          position: absolute;
+          top: -3px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        .card-study-header {
+          padding: 8px 28px 20px;
+        }
+        .card-study-header-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 10px;
+        }
+        .card-study-num {
+          font-size: 10px;
+          letter-spacing: 0.12em;
+        }
+        .card-study-title {
+          margin: 0 0 10px;
+          font-size: clamp(1.65rem, 4vw, 2.25rem);
+          line-height: 1.05;
+        }
+        .card-study-lead {
+          margin: 0 0 16px;
+          font-size: 14px;
+          line-height: 1.55;
+        }
+        .card-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px 24px;
+          margin: 0;
+        }
+        .card-meta div { display: grid; gap: 3px; }
+        .card-meta dt {
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .card-meta dd { margin: 0; font-size: 13px; }
+        .peg-chapters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 14px;
+          padding: 0 28px 16px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .peg-chapter {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          text-decoration: none;
+          font-size: 9px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .peg-chapter .motif-peg {
+          display: inline-flex;
+          transform: scale(0.85);
+        }
+        .card-body {
+          padding: 20px 28px 8px;
+        }
+        .card-body .cs-visual {
+          margin: 0 0 24px;
+        }
+        .card-body .cs-visual-frame {
+          border-radius: 10px;
+          aspect-ratio: 16 / 10;
+        }
+        .card-section {
+          margin-bottom: 28px;
+          padding-top: 4px;
+        }
+        .card-section--peg {
+          border-top: 1px dashed rgba(0, 0, 0, 0.08);
+          padding-top: 20px;
+        }
+        .card-section-num {
+          display: block;
+          font-size: 9px;
+          letter-spacing: 0.12em;
+          margin-bottom: 6px;
+        }
+        .card-section-title {
+          margin: 0 0 10px;
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .card-quote {
+          margin: 0;
+          padding-left: 16px;
+          border-left: 2px solid;
+          font-size: 1.15rem;
+          line-height: 1.4;
+        }
+        .card-steps {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 8px;
+        }
+        .card-steps li {
+          display: grid;
+          grid-template-columns: 24px 1fr;
+          gap: 8px;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        .card-metrics {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .card-metric {
+          padding: 12px;
+          border: 1px solid;
+          border-radius: 8px;
+        }
+        .project-layout--fold {
+          position: relative;
+          overflow: hidden;
+        }
+        .fold-texture {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        .fold-hue-band {
+          height: 6px;
+          border-bottom: 1px solid;
+        }
+        .fold-inner {
+          position: relative;
+        }
+        .fold-fabric-label {
+          font-size: 9px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .project-layout--sky,
+        .about-layout--sky {
+          display: flex;
+          flex-direction: column;
+          min-height: 100%;
+        }
+        .scene-sky-hero {
+          position: relative;
+          flex: 0 0 min(38vh, 320px);
+          min-height: 220px;
+        }
+        .scene-sky-hero .motif-season-sky {
+          position: absolute;
+          inset: 0;
+        }
+        .motif-season-sky {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
+        .scene-sky-hero-copy {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          padding: 0 28px 22px;
+          z-index: 1;
+        }
+        .scene-sky-body {
+          flex: 1;
+          min-height: 0;
+          padding: 8px 28px 28px;
+        }
+        .project-layout--hills,
+        .about-layout--hills {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          min-height: 100%;
+        }
+        .scene-hills-backdrop {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          overflow: hidden;
+        }
+        .scene-hills-sky {
+          width: 100%;
+          height: 100%;
+        }
+        .scene-hills-content {
+          position: relative;
+          z-index: 1;
+          flex: 1;
+          min-height: 0;
+          margin-bottom: min(26vh, 200px);
+        }
+        .scene-hills-foot {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 2;
+          height: min(28vh, 220px);
+          min-height: 140px;
+          pointer-events: none;
+        }
+        .motif-season-hills {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
+        .about-layout--sky .scene-sky-body,
+        .about-layout--hills .scene-hills-content {
+          padding-bottom: 32px;
+        }
+        .about-layout--hills .scene-hills-content .about-card-body,
+        .about-layout--hills .about-card-body {
+          padding: 0 28px 8px;
+        }
+        .project-layout--line .motif-clothesline {
+          margin: 4px 20px 0;
+          width: calc(100% - 40px);
+        }
+        .page-overlay-sheet {
+          position: fixed;
+          z-index: 2;
+          top: 10px;
+          left: 10px;
+          width: calc(100vw - 20px);
+          height: calc(100vh - 20px);
+          border-radius: 16px;
+          box-shadow: 0 16px 56px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.04);
+          overflow: hidden;
+          pointer-events: auto;
+          opacity: 0;
+          transform: translateY(16px);
+          transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1), transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+          display: flex;
+          flex-direction: column;
+        }
+        .page-overlay-sheet .project-grow-card-inner,
+        .page-overlay-sheet .project-grow-card-body {
+          flex: 1;
+          min-height: 0;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+        .page-overlay-sheet.is-entered {
+          opacity: 1;
+          transform: none;
+        }
+        .page-overlay-sheet.is-closing {
+          opacity: 0;
+          transform: translateY(12px);
+          pointer-events: none;
+          transition: opacity 0.32s ease, transform 0.34s ease;
+        }
+        .about-page-wrap--card {
+          padding: 0 0 24px;
+        }
+        .about-layout--line,
+        .about-layout--fold,
+        .about-layout--sky,
+        .about-layout--hills {
+          width: 100%;
+          margin: 0;
+        }
+        .about-layout--line .motif-clothesline {
+          margin: 4px 20px 0;
+          width: calc(100% - 40px);
+        }
+        .about-card-kicker {
+          margin: 0 0 6px;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .about-card-place {
+          margin: 6px 0 0;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+        }
+        .about-card-body {
+          padding: 0 28px 8px;
+        }
+        .about-card-section {
+          margin-bottom: 24px;
+        }
+        .about-card-section--peg {
+          border-top: 1px dashed rgba(0, 0, 0, 0.08);
+          padding-top: 18px;
+        }
+        .about-card-section--peg .motif-peg {
+          display: inline-flex;
+          margin-bottom: 8px;
+          transform: scale(0.85);
+        }
+        .about-card-section-title {
+          margin: 0 0 12px;
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .about-card-bio p {
+          margin: 0 0 1em;
+          font-size: 15px;
+          line-height: 1.65;
+        }
+        .about-card-bio p:last-child { margin-bottom: 0; }
+        .about-card-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 0;
+        }
+        .about-card-list li {
+          display: grid;
+          gap: 3px;
+          padding: 12px 0;
+          border-bottom: 1px solid;
+        }
+        .about-card-list li span:first-child { font-size: 10px; }
+        .about-card-list li span:nth-child(2) { font-size: 1rem; line-height: 1.2; }
+        .about-card-list li span:last-child { font-size: 13px; }
+        .about-card-timeline {
+          padding: 0 28px;
+        }
+        .about-card-contact {
+          padding: 8px 28px 4px;
+          border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .about-card-contact-lead {
+          margin: 0 0 8px;
+          font-size: 1.1rem;
+          line-height: 1.35;
+        }
+        .about-card-contact a {
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-decoration: none;
+        }
+        .about-sky-copy {
+          padding-bottom: 26px;
+        }
+        .about-overlay-study {
+          flex: 1 !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          pointer-events: auto !important;
+          display: flex !important;
+          flex-direction: column !important;
+        }
+        .project-grow-card-fold.is-visible {
+          opacity: 1;
+        }
+        .ed-chrome {
+          grid-column: 1 / -1;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+          align-items: center;
+          gap: 16px;
+          margin: 0 -48px;
+          padding: 0 48px 24px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .ed-chrome-brand {
+          justify-self: start;
+          border: none;
+          background: none;
+          padding: 0;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.14em;
+          cursor: pointer;
+        }
+        .ed-chrome-projects {
+          justify-self: center;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .ed-chrome-projects-label {
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.12em;
+        }
+        .ed-chrome-project-nums {
+          display: flex;
+          gap: 10px;
+        }
+        .ed-chrome-project-num {
+          border: none;
+          background: none;
+          padding: 0;
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.06em;
+          cursor: pointer;
+          opacity: 0.72;
+          transition: opacity 0.18s ease;
+        }
+        .ed-chrome-project-num.is-active,
+        .ed-chrome-project-num:hover {
+          opacity: 1;
+        }
+        .ed-chrome-links {
+          justify-self: end;
+          display: flex;
+          align-items: center;
+          gap: 20px;
+        }
+        .ed-chrome-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          border: none;
+          background: none;
+          padding: 0;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          cursor: pointer;
+          transition: opacity 0.18s ease;
+        }
+        .ed-chrome-link-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+        }
+        .about-page {
+          display: block;
+        }
+        .about-hero-band {
+          margin: 0 -48px 0;
+          padding: 40px 48px 48px;
+        }
+        .about-hero-inner {
+          max-width: 1120px;
+          margin: 0 auto;
+        }
+        .about-hero-label {
+          margin: 0 0 12px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          opacity: 0.82;
+        }
+        .about-hero-name {
+          margin: 0 0 16px;
+          font-size: clamp(3rem, 8vw, 5.5rem);
+          font-weight: 400;
+          line-height: 0.95;
+          letter-spacing: -0.03em;
+        }
+        .about-hero-tag {
+          margin: 0;
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          opacity: 0.72;
+        }
+        .about-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 32px;
+          padding: 48px 0 64px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .about-col-label {
+          margin: 0 0 24px;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .about-portrait {
+          aspect-ratio: 4 / 5;
+          border-radius: 4px;
+          border: 1px solid transparent;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 16px;
+        }
+        .about-portrait-monogram {
+          font-size: 3rem;
+          line-height: 1;
+        }
+        .about-location {
+          margin: 0;
+          font-size: 10px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .about-bio {
+          font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+          line-height: 1.65;
+        }
+        .about-bio p {
+          margin: 0 0 1.1em;
+        }
+        .about-bio p:last-child {
+          margin-bottom: 0;
+        }
+        .about-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+        .about-list-item {
+          padding: 16px 0;
+          border-bottom: 1px solid transparent;
+          display: grid;
+          gap: 4px;
+        }
+        .about-list-period {
+          font-size: 10px;
+          letter-spacing: 0.08em;
+        }
+        .about-list-title {
+          font-size: 15px;
+          line-height: 1.4;
+          font-weight: 600;
+        }
+        .about-list-sub {
+          font-size: 14px;
+          line-height: 1.4;
+        }
+        .about-contact {
+          padding: 48px 0 24px;
+        }
+        .about-contact-headline {
+          margin: 0 0 24px;
+          font-size: clamp(1.5rem, 3vw, 2rem);
+          line-height: 1.35;
+          max-width: 28em;
+        }
+        .about-contact-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .about-contact-link {
+          display: inline-flex;
+          padding: 10px 18px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          text-decoration: none;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          transition: opacity 0.18s ease;
+        }
+        .about-contact-link:hover {
+          opacity: 0.72;
+        }
+        .cs-editorial {
+          display: grid;
+          grid-template-columns: 56px minmax(0, 640px) 1fr;
+          column-gap: 28px;
+          align-items: start;
+        }
+        .cs-hero {
+          grid-column: 2;
+          padding: 8px 0 56px;
+        }
+        .cs-hero-band {
+          grid-column: 1 / -1;
+          margin: 0 -48px 0;
+          padding: 32px 48px 40px;
+        }
+        .cs-hero-band-inner {
+          display: grid;
+          grid-template-columns: 56px minmax(0, 640px) 1fr;
+          column-gap: 28px;
+          max-width: 1120px;
+          margin: 0 auto;
+        }
+        .cs-hero-band-content {
+          grid-column: 2;
+        }
+        .cs-project-num {
+          display: block;
+          margin-bottom: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          opacity: 0.72;
+        }
+        .cs-hero-kicker {
+          margin: 16px 0 0;
+          font-size: clamp(1rem, 1.8vw, 1.2rem);
+          font-weight: 400;
+          line-height: 1.55;
+          opacity: 0.9;
+        }
+        .cs-hero-kicker em {
+          font-style: italic;
+        }
+        .cs-hero-title {
+          margin: 0;
+          font-size: clamp(2.5rem, 6.5vw, 4.25rem);
+          font-weight: 400;
+          line-height: 0.98;
+          letter-spacing: -0.03em;
+          max-width: 14ch;
+        }
+        .cs-meta-row {
+          grid-column: 1 / -1;
+          margin: 0 -48px;
+          padding: 24px 48px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .cs-meta-row-inner {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 180px));
+          gap: 32px;
+          max-width: 1120px;
+          margin: 0 auto;
+          padding-left: calc(56px + 28px);
+        }
+        .cs-meta-col {
+          display: grid;
+          gap: 6px;
+        }
+        .cs-meta-label {
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .cs-meta-value {
+          font-size: 14px;
+          line-height: 1.45;
+        }
+        .cs-hero-after {
+          grid-column: 1 / -1;
+          margin: 0 -48px 48px;
+          padding: 20px 48px 0;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        }
+        .cs-hero-after-inner {
+          display: grid;
+          grid-template-columns: 56px minmax(0, 640px) 1fr;
+          column-gap: 28px;
+          max-width: 1120px;
+          margin: 0 auto;
+          padding: 0 0 20px;
+        }
+        .cs-chapter-nav {
+          grid-column: 2;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 28px;
+        }
+        .cs-chapter-link {
+          display: inline-flex;
+          align-items: baseline;
+          gap: 7px;
+          text-decoration: none;
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          transition: opacity 0.18s ease;
+        }
+        .cs-chapter-link:hover {
+          opacity: 0.72;
+        }
+        .cs-chapter-link:hover .cs-chapter-label {
+          color: var(--cs-accent);
+        }
+        .cs-span-full {
+          grid-column: 1 / -1;
+        }
+        .cs-section-pair {
+          display: contents;
+        }
+        .cs-visual {
+          grid-column: 1 / -1;
+          margin: 0 0 72px;
+        }
+        .cs-visual--tall .cs-visual-frame {
+          aspect-ratio: 16 / 9;
+        }
+        .cs-visual-frame {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 16 / 10;
+          border-radius: 12px;
+          overflow: hidden;
+          background: #F0F0EE;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(0, 0, 0, 0.06);
+        }
+        .cs-visual-frame .cs-mockup-img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center top;
+          display: block;
+        }
+        .cs-visual-caption {
+          margin: 12px 0 0;
+          font-size: 10px;
+          font-weight: 500;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .cs-section-index {
+          grid-column: 1;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          padding-top: 6px;
+          position: sticky;
+          top: 72px;
+          align-self: start;
+        }
+        .cs-section-main {
+          grid-column: 2;
+          margin-bottom: 72px;
+        }
+        .cs-section-pair--quote .cs-section-main {
+          padding: 40px 0;
+          border-top: 1px solid rgba(0, 0, 0, 0.06);
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .cs-section-title {
+          margin: 0 0 20px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .cs-body {
+          margin: 0;
+          font-size: 17px;
+          line-height: 1.72;
+        }
+        .cs-body--gap {
+          margin-top: 28px;
+        }
+        .cs-steps {
+          list-style: none;
+          margin: 28px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 0;
+        }
+        .cs-step {
+          display: grid;
+          grid-template-columns: 40px 1fr;
+          gap: 16px;
+          padding: 20px 0;
+          border-top: 1px solid rgba(0, 0, 0, 0.06);
+          font-size: 16px;
+          line-height: 1.6;
+        }
+        .cs-step:last-child {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .cs-step-num {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          padding-top: 3px;
+        }
+        .cs-pullquote-text {
+          margin: 0;
+          padding: 0 0 0 28px;
+          border-left: 3px solid transparent;
+          font-size: clamp(1.5rem, 3vw, 2.125rem);
+          line-height: 1.38;
+          font-weight: 400;
+          letter-spacing: -0.015em;
+        }
+        .cs-wire-grid {
+          display: grid;
+          gap: 16px;
+          margin: 28px 0;
+        }
+        .cs-wire-grid--lofi {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .cs-wire-frame {
+          position: relative;
+          background: #FFFFFF;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          padding: 14px;
+          min-height: 140px;
+        }
+        .cs-wire-chrome {
+          display: flex;
+          gap: 5px;
+          margin-bottom: 12px;
+        }
+        .cs-wire-chrome span {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+        }
+        .cs-wire-body {
+          display: grid;
+          gap: 8px;
+        }
+        .cs-wire-line {
+          height: 6px;
+          border-radius: 3px;
+        }
+        .cs-wire-block {
+          height: 48px;
+          border-radius: 6px;
+        }
+        .cs-wire-tag {
+          position: absolute;
+          right: 10px;
+          bottom: 8px;
+          font-size: 9px;
+          font-weight: 500;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .cs-metrics {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 1px;
+          margin-top: 36px;
+          background: rgba(0, 0, 0, 0.06);
+          border-radius: 12px;
+          overflow: hidden;
+        }
+        .cs-metric {
+          padding: 28px 20px;
+          background: #FAFAF8;
+          text-align: left;
+        }
+        .cs-metric-value {
+          font-size: clamp(1.75rem, 3vw, 2.25rem);
+          line-height: 1.1;
+          margin-bottom: 8px;
+          letter-spacing: -0.02em;
+        }
+        .cs-metric-label {
+          font-size: 13px;
+          line-height: 1.45;
+          opacity: 0.72;
+        }
+        @media (max-width: 768px) {
+          .case-study-sheet-content,
+          .project-grow-card-toolbar {
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .case-study-sheet-content {
+            padding-bottom: 64px;
+          }
+          .cs-editorial {
+            grid-template-columns: 1fr;
+          }
+          .cs-hero,
+          .cs-section-index,
+          .cs-section-main {
+            grid-column: 1;
+          }
+          .cs-section-index {
+            position: static;
+            margin-bottom: 8px;
+          }
+          .cs-hero-band {
+            margin-left: -20px;
+            margin-right: -20px;
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .cs-hero-after {
+            margin-left: -20px;
+            margin-right: -20px;
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .cs-hero-band-inner,
+          .cs-hero-after-inner {
+            grid-template-columns: 1fr;
+          }
+          .cs-hero-band-content,
+          .cs-hero-lead,
+          .cs-chapter-nav {
+            grid-column: 1;
+          }
+          .cs-hero-title {
+            max-width: none;
+          }
+          .ed-chrome {
+            grid-template-columns: 1fr;
+            margin-left: -20px;
+            margin-right: -20px;
+            padding-left: 20px;
+            padding-right: 20px;
+            gap: 16px;
+          }
+          .ed-chrome-brand,
+          .ed-chrome-projects,
+          .ed-chrome-links {
+            justify-self: start;
+          }
+          .ed-chrome-project-nums {
+            flex-wrap: wrap;
+          }
+          .about-hero-band {
+            margin-left: -20px;
+            margin-right: -20px;
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .layout-tab-bar--inset {
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .about-layout--grid .studio-topbar,
+          .about-layout--grid .studio-grid,
+          .about-layout--grid .studio-marquee,
+          .about-layout--editorial,
+          .project-layout--editorial,
+          .spread-project-bar,
+          .spread-band--text,
+          .spread-band--quote,
+          .spread-band--stats,
+          .spread-about-head,
+          .spread-about-bio,
+          .spread-about-table,
+          .about-layout--frame,
+          .project-layout--frame {
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .project-layout--grid .studio-topbar--light {
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .project-studio-rail {
+            padding-left: 20px;
+          }
+          .project-studio-main {
+            padding: 32px 20px 64px;
+          }
+          .studio-grid,
+          .domini-about-columns,
+          .chromatic-columns,
+          .project-chromatic-meta {
+            grid-template-columns: 1fr;
+          }
+          .domini-about-split,
+          .project-studio-split,
+          .frame-body,
+          .ed-spread-main,
+          .ed-spread-timeline,
+          .ed-spread-project-body,
+          .frame-stage-intro,
+          .frame-bubble-row,
+          .frame-bento,
+          .frame-study-cards {
+            grid-template-columns: 1fr;
+          }
+          .frame-tile--span2 { grid-column: span 1; }
+          .chrom-immersion-name-line2 { margin-left: 0; }
+          .chrom-stats { grid-template-columns: 1fr; }
+          .project-studio-rail {
+            position: static;
+            border-right: none;
+            border-bottom: 1px solid;
+            padding-right: 0;
+          }
+          .magazine-row {
+            grid-template-columns: 1fr;
+          }
+          .studio-metrics,
+          .spread-stats,
+          .magazine-stats {
+            grid-template-columns: 1fr;
+          }
+          .project-chromatic-card {
+            margin: 0 -20px;
+            padding: 0 20px 48px;
+          }
+          .about-grid {
+            grid-template-columns: 1fr;
+            gap: 40px;
+          }
+          .cs-meta-row {
+            margin-left: -20px;
+            margin-right: -20px;
+            padding-left: 20px;
+            padding-right: 20px;
+          }
+          .cs-meta-row-inner {
+            grid-template-columns: 1fr;
+            padding-left: 0;
+            gap: 20px;
+          }
+          .cs-wire-grid--lofi {
+            grid-template-columns: 1fr;
+          }
+          .cs-metrics {
+            grid-template-columns: 1fr;
+          }
+          .cs-nav {
+            gap: 6px;
+          }
+        }
+        @keyframes focusCardReturnDrop {
+          from { opacity: 0; transform: translate(-50%, 14px) scale(0.95); }
+          to { opacity: 1; transform: translate(-50%, -8px) scale(1); }
         }
         .project-focus-card-sway {
           transform-origin: top center;
@@ -3171,15 +6762,30 @@ export default function App() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          border: none;
+          outline: none;
+          -webkit-appearance: none;
+          appearance: none;
           border-radius: 999px;
           font-weight: 600;
           letter-spacing: 0.6px;
           text-decoration: none;
           cursor: pointer;
-          transition: transform 0.15s ease, opacity 0.15s ease;
+          transition: opacity 0.15s ease;
         }
-        .project-focus-btn:hover {
-          transform: translateY(-1px);
+        .project-focus-btn-primary {
+          box-shadow: none;
+        }
+        .project-focus-btn-primary:focus,
+        .project-focus-btn-primary:focus-visible {
+          outline: none;
+          box-shadow: none;
+        }
+        .project-focus-btn-primary:hover {
+          opacity: 0.88;
+        }
+        .project-focus-btn:active {
+          opacity: 0.82;
         }
         .project-focus-close {
           width: 30px;
@@ -3443,6 +7049,35 @@ function blendHex(a, b, t) {
   const g = Math.round(ag + (bg - ag) * t);
   const bl = Math.round(ab + (bb - ab) * t);
   return `#${[r, g, bl].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function sockShape(x, y, on, P) {
+  const body = on ? blendHex("#FCF6EA", P.accent, 0.04) : "#FCF6EA";
+  const cuff = on ? blendHex("#EFE9DD", P.accent, 0.04) : "#EFE9DD";
+  const rib = "#3A2A22";
+  const heart = "#D65B3E";
+
+  return (
+    <g transform={`translate(${x - 60}, ${y - 14})`} stroke="none">
+      <path
+        d="M51 36
+          L51 72
+          Q51 88 42 94
+          Q30 102 29 115
+          Q29 127 41 128
+          Q54 128 60 117
+          Q68 103 68 85
+          L68 36 Z"
+        fill={body}
+      />
+      <rect x="49" y="26" width="21" height="12" rx="4" fill={cuff} />
+      <line x1="54" y1="29" x2="54" y2="35" stroke={rib} strokeWidth="1" opacity="0.18" />
+      <line x1="61" y1="29" x2="61" y2="35" stroke={rib} strokeWidth="1" opacity="0.18" />
+      <text x="59" y="72" fontSize="12" textAnchor="middle" fill={heart}>
+        ♥
+      </text>
+    </g>
+  );
 }
 
 const getClothType = (pc, creatorType) => {
