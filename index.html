@@ -412,10 +412,7 @@
 
   /* ── Hero background parallax ────────────────────────────────────────── */
   function heroParallax() {
-    gsap.to('.hero', {
-      backgroundPositionY: '72%', ease: 'none',
-      scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true }
-    });
+    // Hero uses a CSS drift animation on hero-bg; no GSAP scroll parallax needed
   }
 
   /* ── Story section ───────────────────────────────────────────────────── */
