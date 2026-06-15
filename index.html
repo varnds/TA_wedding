@@ -398,7 +398,7 @@
   /* ── Hero entrance ───────────────────────────────────────────────────── */
   function heroEntrance() {
     var tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
-    tl.from('.hero',         { scale: 1.06, duration: 2.0, ease: 'power2.out',
+    tl.from('.hero > :not(.hero-bg)', { scale: 1.06, duration: 2.0, ease: 'power2.out',
                                transformOrigin: 'center center' }, 0)
       .from('.anim-hero-top',{ y: 22, opacity: 0, duration: 0.9 }, 0.35)
       .from('.hero-a',       { yPercent: 105, duration: 1.2 }, 0.55)
@@ -418,16 +418,21 @@
   (function () {
     var track = document.querySelector('.hero-track');
     if (!track || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    var x = 0;
-    var halfW = track.scrollWidth / 2;
-    var speed = halfW / (45 * 60); // pixels per frame at 60fps, matching 45s duration
-    function tick() {
-      x -= speed;
-      if (x <= -halfW) x += halfW;
-      track.style.transform = 'translate3d(' + x + 'px,0,0)';
+    function startDrift() {
+      var x = 0;
+      var halfW = track.scrollWidth / 2;
+      if (halfW === 0) return;
+      var speed = halfW / (45 * 60);
+      function tick() {
+        x -= speed;
+        if (x <= -halfW) x += halfW;
+        track.style.transform = 'translate3d(' + x + 'px,0,0)';
+        requestAnimationFrame(tick);
+      }
       requestAnimationFrame(tick);
     }
-    requestAnimationFrame(tick);
+    if (document.readyState === 'complete') { startDrift(); }
+    else { window.addEventListener('load', startDrift); }
   })();
 
   /* ── Story section ───────────────────────────────────────────────────── */
