@@ -74,6 +74,8 @@
   .story-prose p { font-size: clamp(15px, 2vw, 17px); line-height: 1.9; margin-bottom: 20px; color: #3c443c; }
   .story-prose p:first-of-type::first-letter { font-family: 'Cormorant Garamond', serif; font-size: 56px; float: left; line-height: .8; padding: 6px 12px 0 0; color: var(--gold); }
   .story-prose.center { text-align: center; }
+  .story-img-hero { width: 100%; max-width: 940px; margin: 52px auto; border-radius: 6px; overflow: hidden; box-shadow: 0 24px 70px rgba(58,70,54,.18); }
+  .story-img-hero img { width: 100%; height: 560px; object-fit: cover; object-position: center 30%; display: block; }
   .story-img-full { width: 100%; max-width: 940px; margin: 56px auto; border-radius: 6px; overflow: hidden; box-shadow: 0 20px 60px rgba(58,70,54,.15); }
   .story-img-full img { width: 100%; height: 440px; object-fit: cover; display: block; }
   .story-split { display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: center; max-width: 940px; margin: 56px auto; }
@@ -153,7 +155,7 @@
   .foot .leaf { color: var(--gold); font-size: 22px; }
   .foot p { font-family: 'Cormorant Garamond', serif; font-style: italic; margin-top: 8px; color: var(--moss-deep); }
 
-  @media (max-width: 760px) { .story-split { grid-template-columns: 1fr; gap: 30px; } .story-duo { grid-template-columns: 1fr; } .story-duo-item img { height: 280px; } .story-img-full img { height: 260px; } .story-split-photo img { aspect-ratio: 4/3; } }
+  @media (max-width: 760px) { .story-split { grid-template-columns: 1fr; gap: 30px; } .story-duo { grid-template-columns: 1fr; } .story-duo-item img { height: 280px; } .story-img-full img { height: 260px; } .story-img-hero img { height: 360px; } .story-split-photo img { aspect-ratio: 4/3; } }
   @media (max-width: 560px) { .choices { flex-direction: column; } .event { grid-template-columns: 92px 1fr; gap: 14px; } }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto; } }
 
@@ -163,6 +165,7 @@
   .hero .when, .hero .where, .hero .countdown, .hero .cta { will-change: transform, opacity; }
   .story-split-photo,
   .story-img-full,
+  .story-img-hero,
   .story-duo-item,
   .story-prose p,
   .story-split-text p,
@@ -223,38 +226,37 @@
       <h2 class="section-title anim-title">Anand&rsquo;s Serendipitous First Date in San Francisco</h2>
       <div class="divider" style="margin-bottom:48px"></div>
 
-      <!-- Intro paragraphs -->
+      <!-- Opening prose -->
       <div class="story-prose">
         <p>For two years, Anand had been living the dream, or at least a version of it involving a backpack, no fixed address, and a blissful disregard for anything resembling a plan. He was a man of the road, a wanderer, a serial city-hopper who had turned &ldquo;just passing through&rdquo; into something of a lifestyle.</p>
         <p>Meanwhile, across the world (and across every conceivable lifestyle), Tiuli was doing the opposite. After years in consulting, hopping cities and living out of suitcases, she had finally put down roots in San Francisco. She had an apartment. She had a routine. She had, blessedly, unpacked her bags.</p>
-        <p>Then Anand decided to swing through San Francisco for just one month to meet his parents during their travels from Chennai. One month. That&rsquo;s it. No big deal. Except, it happened to be the same city, the same month, and through a serendipitous swipe on a dating app, the same universe as Tiuli.</p>
+        <p>Then Anand decided to swing through San Francisco for just one month to meet his parents during their travels from Chennai. One month. That&rsquo;s it. No big deal. Except, it happened to be the same city, the same month, and through a serendipitous swipe on a dating app &mdash; the same universe as Tiuli.</p>
       </div>
 
-      <!-- Wide B&W rowboat photo -->
-      <div class="story-img-full">
-        <img src="img/image10.jpeg" alt="Stow Lake, Golden Gate Park" loading="eager">
+      <!-- Hero moment: the golden hour face-to-face -->
+      <div class="story-img-hero">
+        <img src="img/image5.jpeg" alt="" loading="eager">
       </div>
 
-      <!-- Split: text left, portrait right -->
+      <!-- Split: text left / columns portrait right -->
       <div class="story-split">
         <div class="story-split-text">
-          <p>They matched. They agreed to meet. And so Anand, freshly arrived and entirely unfamiliar with the city, did what any self respecting first dater would do: he went for a stroll to find the perfect spot. He walked. He explored. He took his sweet time.</p>
+          <p>They matched. They agreed to meet. And so Anand, freshly arrived and entirely unfamiliar with the city, did what any self-respecting first dater would do: he went for a stroll to find the perfect spot. He walked. He explored. He took his sweet time.</p>
           <p>He found a coffee shop with an absolutely stunning view of the Golden Gate Bridge. Expansive windows. Good vibes. Totally charming. He was very proud of himself.</p>
-          <p>What he had not noticed, and could not have noticed in his defense, was that this coffee shop was attached to the back of a seedy hostel. Like, attached attached. Tiuli arrived. She took one look around. She raised an eyebrow. She said nothing.</p>
+          <p>What he had not noticed &mdash; and could not have noticed in his defense &mdash; was that this coffee shop was attached to the back of a seedy hostel. Like, attached attached. Tiuli arrived. She took one look around. She raised an eyebrow. She said nothing.</p>
           <p>She stayed anyway. (This, if you ask Anand, is the moment he knew she was extraordinary.)</p>
         </div>
         <div class="story-split-photo">
-          <img src="img/image5.jpeg" alt="" loading="eager">
+          <img src="img/image1.jpeg" alt="" loading="eager">
         </div>
       </div>
 
-      <!-- Duo photo pair -->
-      <div class="story-duo">
-        <div class="story-duo-item"><img src="img/image11.jpeg" alt="" loading="eager"></div>
-        <div class="story-duo-item"><img src="img/image0.jpeg" alt="" loading="eager"></div>
+      <!-- Full-width B&W rowboat -->
+      <div class="story-img-full">
+        <img src="img/image8.jpeg" alt="" loading="eager">
       </div>
 
-      <!-- Split: portrait left, text right -->
+      <!-- Split: reading portrait left / text right -->
       <div class="story-split">
         <div class="story-split-photo">
           <img src="img/image4.jpeg" alt="" loading="eager">
@@ -265,12 +267,12 @@
         </div>
       </div>
 
-      <!-- Wide color rowboat photo -->
+      <!-- Full-width color rowboat kiss -->
       <div class="story-img-full">
-        <img src="img/image8.jpeg" alt="Stow Lake, Golden Gate Park" loading="eager">
+        <img src="img/image10.jpeg" alt="" loading="eager">
       </div>
 
-      <!-- Final text -->
+      <!-- Final closing text -->
       <div class="story-final">
         <p>And to this day, Tiuli is so grateful that, for once, her (often reckless) fearlessness led her to exactly the right person she had always been looking for.</p>
         <p>Some people spend years searching. Anand and Tiuli needed exactly one month, one walk, and one questionable first date recommendation to find the love of their lives.</p>
@@ -432,7 +434,7 @@
       gsap.from(p, { opacity: 0, y: 24, duration: 0.75, ease: 'power3.out',
         scrollTrigger: { trigger: p, start: 'top 90%' } });
     });
-    document.querySelectorAll('.story-split-photo, .story-img-full, .story-duo-item').forEach(function(el) {
+    document.querySelectorAll('.story-split-photo, .story-img-full, .story-img-hero, .story-duo-item').forEach(function(el) {
       gsap.set(el, { opacity: 1, y: 0 });
       gsap.from(el, { opacity: 0, y: 40, duration: 1, ease: 'power3.out',
         scrollTrigger: { trigger: el, start: 'top 86%' } });
