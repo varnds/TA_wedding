@@ -56,7 +56,7 @@
   .hero .cta:hover { transform: translateY(-2px); filter: brightness(1.08); }
   /* Hero: a horizontally drifting strip of photos (parallax) instead of one image */
   .hero { position: relative; background: #241f1a !important; }
-  .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; max-width: 100%; }
+  .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; max-width: 100%; pointer-events: none; }
   .hero-track { display: flex; height: 100%; width: max-content; gap: 0; animation: heroDrift 45s linear infinite; will-change: transform; backface-visibility: hidden; }
   .hero-track img { height: 100%; width: auto; object-fit: cover; display: block; flex: 0 0 auto; }
   @keyframes heroDrift { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
