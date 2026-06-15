@@ -56,13 +56,12 @@
   /* Hero: a horizontally drifting strip of photos (parallax) instead of one image */
   .hero { position: relative; background: #241f1a !important; }
   .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; will-change: transform; }
-  .hero-track { display: flex; height: 100%; width: max-content; gap: 6px; animation: heroDrift 75s linear infinite; }
+  .hero-track { display: flex; height: 100%; width: max-content; gap: 0; animation: heroDrift 45s linear infinite; }
   .hero-track img { height: 100%; width: auto; object-fit: cover; display: block; flex: 0 0 auto; }
   @keyframes heroDrift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .hero::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
     background: linear-gradient(rgba(36,31,26,.44), rgba(36,31,26,.64)); }
   .hero > :not(.hero-bg) { position: relative; z-index: 2; }
-  .hero:hover .hero-track { animation-play-state: paused; }
   @media (prefers-reduced-motion: reduce) { .hero-track { animation: none; } }
 
   .countdown { display: flex; gap: clamp(16px, 5vw, 40px); margin-top: 38px; }
