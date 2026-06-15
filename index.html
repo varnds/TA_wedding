@@ -188,6 +188,14 @@
   /* hero name splits */
   .hero h1 .word { display: inline-block; overflow: hidden; }
   .hero h1 .word-inner { display: inline-block; }
+
+  /* Gallery modal */
+  .gal-modal { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.88); align-items: center; justify-content: center; flex-direction: column; padding: 24px; }
+  .gal-modal.open { display: flex; }
+  .gal-modal img { max-width: 90vw; max-height: 78vh; border-radius: 6px; object-fit: contain; display: block; }
+  .gal-modal-caption { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: clamp(16px, 2vw, 20px); color: rgba(255,255,255,0.88); margin-top: 18px; text-align: center; }
+  .gal-modal-close { position: absolute; top: 20px; right: 28px; font-size: 32px; color: #fff; cursor: pointer; background: none; border: none; line-height: 1; opacity: 0.7; }
+  .gal-modal-close:hover { opacity: 1; }
 </style>
   <!-- Motion libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -535,5 +543,34 @@
     });
   })();
 </script>
+
+<div class="gal-modal" id="galModal" role="dialog" aria-modal="true">
+  <button class="gal-modal-close" id="galClose" aria-label="Close">&times;</button>
+  <img id="galModalImg" src="" alt="">
+  <p class="gal-modal-caption" id="galModalCaption"></p>
+</div>
+
+  // Gallery modal
+  (function () {
+    var modal = document.getElementById('galModal');
+    var modalImg = document.getElementById('galModalImg');
+    var modalCaption = document.getElementById('galModalCaption');
+    var closeBtn = document.getElementById('galClose');
+
+    document.querySelector('.masonry').addEventListener('click', function (e) {
+      var img = e.target.closest('img[data-caption]');
+      if (!img) return;
+      modalImg.src = img.src;
+      modalImg.alt = img.alt;
+      modalCaption.textContent = img.dataset.caption;
+      modal.classList.add('open');
+    });
+
+    function closeModal() { modal.classList.remove('open'); modalImg.src = ''; }
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+  })();
+
 </body>
 </html>
