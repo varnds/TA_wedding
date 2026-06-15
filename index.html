@@ -53,6 +53,17 @@
   .hero .where { margin-top: 8px; letter-spacing: .2em; text-transform: uppercase; font-size: 12.5px; opacity: .92; }
   .hero .cta { margin-top: 38px; background: var(--gold); color: #fff; border: none; cursor: pointer; font-family: 'Jost', sans-serif; padding: 15px 50px; border-radius: 999px; letter-spacing: .2em; text-transform: uppercase; font-size: 12.5px; transition: transform .2s, filter .2s; }
   .hero .cta:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  /* Hero: a horizontally drifting strip of photos (parallax) instead of one image */
+  .hero { position: relative; background: #241f1a !important; }
+  .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; will-change: transform; }
+  .hero-track { display: flex; height: 100%; width: max-content; gap: 6px; animation: heroDrift 75s linear infinite; }
+  .hero-track img { height: 100%; width: auto; object-fit: cover; display: block; flex: 0 0 auto; }
+  @keyframes heroDrift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .hero::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(rgba(36,31,26,.44), rgba(36,31,26,.64)); }
+  .hero > :not(.hero-bg) { position: relative; z-index: 2; }
+  .hero:hover .hero-track { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) { .hero-track { animation: none; } }
 
   .countdown { display: flex; gap: clamp(16px, 5vw, 40px); margin-top: 38px; }
   .count { display: flex; flex-direction: column; align-items: center; }
@@ -180,6 +191,22 @@
 
 <main class="page on" id="page-home">
   <header class="hero">
+    <div class="hero-bg" id="heroBg"><div class="hero-track">
+      <img src="https://images.zola.com/cb92ed36-e94d-4b8b-87da-cda8045f03bc?w=1100" alt="" />
+      <img src="https://images.zola.com/1c3d9cd0-36ed-4511-8561-ebbdc7a85d84?w=1100" alt="" />
+      <img src="https://images.zola.com/84b527de-9b7a-4f42-bb71-8f0a79998a43?w=1100" alt="" />
+      <img src="https://images.zola.com/f7e42a11-8d7e-46e9-8851-9b17d904f93e?w=1100" alt="" />
+      <img src="https://images.zola.com/59e9f548-a73e-478e-bb7f-9d050905ddd5?w=1100" alt="" />
+      <img src="https://images.zola.com/1ce2eae1-a97e-45b8-ac20-60f6b1099605?w=1100" alt="" />
+      <img src="https://images.zola.com/e121a30d-6a74-4849-a03c-00973b7e0ad1?w=1100" alt="" />
+      <img src="https://images.zola.com/cb92ed36-e94d-4b8b-87da-cda8045f03bc?w=1100" alt="" />
+      <img src="https://images.zola.com/1c3d9cd0-36ed-4511-8561-ebbdc7a85d84?w=1100" alt="" />
+      <img src="https://images.zola.com/84b527de-9b7a-4f42-bb71-8f0a79998a43?w=1100" alt="" />
+      <img src="https://images.zola.com/f7e42a11-8d7e-46e9-8851-9b17d904f93e?w=1100" alt="" />
+      <img src="https://images.zola.com/59e9f548-a73e-478e-bb7f-9d050905ddd5?w=1100" alt="" />
+      <img src="https://images.zola.com/1ce2eae1-a97e-45b8-ac20-60f6b1099605?w=1100" alt="" />
+      <img src="https://images.zola.com/e121a30d-6a74-4849-a03c-00973b7e0ad1?w=1100" alt="" />
+    </div></div>
     <p class="eyebrow anim-hero-top">Together with their families</p>
     <h1><span class="word"><span class="word-inner hero-a">Anand</span></span><span class="amp anim-hero-amp">and</span><span class="word"><span class="word-inner hero-t">Tiuli</span></span></h1>
     <p class="when anim-hero-meta">Sunday, April 25, 2027</p>
@@ -460,5 +487,20 @@
 }());
 </script>
 
+<script>
+  // Gentle horizontal mouse-parallax on the hero photo strip (composes with the
+  // CSS auto-drift on the inner track).
+  (function () {
+    var hero = document.querySelector('.hero');
+    var bg = document.getElementById('heroBg');
+    if (!hero || !bg) return;
+    hero.addEventListener('pointermove', function (e) {
+      var r = hero.getBoundingClientRect();
+      var dx = (e.clientX - r.left) / r.width - 0.5;
+      bg.style.transform = 'translateX(' + (dx * -34) + 'px)';
+    });
+    hero.addEventListener('pointerleave', function () { bg.style.transform = 'translateX(0)'; });
+  })();
+</script>
 </body>
 </html>
