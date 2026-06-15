@@ -56,7 +56,7 @@
   .hero .cta:hover { transform: translateY(-2px); filter: brightness(1.08); }
   /* Hero: a horizontally drifting strip of photos (parallax) instead of one image */
   .hero { position: relative; background: #241f1a !important; }
-  .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; max-width: 100%; pointer-events: none; }
+  .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; max-width: 100%; pointer-events: none; isolation: isolate; }
   .hero-track { display: flex; height: 100%; width: max-content; gap: 0; animation: heroDrift 45s linear infinite; animation-play-state: running !important; will-change: transform; backface-visibility: hidden; }
   .hero-track img { height: 100%; width: auto; object-fit: cover; display: block; flex: 0 0 auto; }
   @keyframes heroDrift { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
@@ -163,8 +163,7 @@
 
   /* ── GSAP / Lenis motion layer ──────────────────────────────── */
   .hero { overflow: hidden; }
-  .hero .eyebrow, .hero h1, .hero .amp,
-  .hero .when, .hero .where, .hero .countdown, .hero .cta { will-change: transform, opacity; }
+  /* will-change removed from static hero text — promoted only during GSAP entrance, cleared after */
   .story-split-photo,
   .story-img-full,
   .story-img-hero,
@@ -400,7 +399,8 @@
   function heroEntrance() {
     var tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
     tl.from('.hero-bg',      { scale: 1.06, duration: 2.0, ease: 'power2.out',
-                               transformOrigin: 'center center' }, 0)
+                               transformOrigin: 'center center',
+                               onComplete: function() { gsap.set('#heroBg', { clearProps: 'transform,willChange' }); } }, 0)
       .from('.anim-hero-top',{ y: 22, opacity: 0, duration: 0.9 }, 0.35)
       .from('.hero-a',       { yPercent: 105, duration: 1.2 }, 0.55)
       .from('.anim-hero-amp',{ opacity: 0, duration: 0.7 }, 0.88)
@@ -517,19 +517,9 @@
 </script>
 
 <script>
-  // Gentle horizontal mouse-parallax on the hero photo strip (composes with the
-  // CSS auto-drift on the inner track).
-  (function () {
-    var hero = document.querySelector('.hero');
-    var bg = document.getElementById('heroBg');
-    if (!hero || !bg) return;
-    hero.addEventListener('pointermove', function (e) {
-      var r = hero.getBoundingClientRect();
-      var dx = (e.clientX - r.left) / r.width - 0.5;
-      bg.style.transform = 'translateX(' + (dx * -34) + 'px)';
-    });
-    hero.addEventListener('pointerleave', function () { bg.style.transform = 'translateX(0)'; });
-  })();
+  // Mouse-parallax on hero-bg removed — it wrote style.transform directly to
+  // .hero-bg (parent of the CSS-animated .hero-track), desyncing compositor
+  // layers and causing the horizontal gap/flash on hover and pointerleave.
 
   // RSVP form: the iframe fires a 2nd 'load' when it navigates to Google's
   // "response recorded" confirmation page after submit. We can't read its
