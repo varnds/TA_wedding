@@ -435,7 +435,7 @@
       gsap.from(el, { opacity: 0, y: 40, duration: 1, ease: 'power3.out',
         scrollTrigger: { trigger: el, start: 'top 86%' } });
       var img = el.querySelector('img');
-      if (img) { parallax(img, -28, 1.25); }
+      if (img) { gsap.set(img, { scale: 1.12 }); parallax(img, -28, 1.25); }
     });
   }
 
