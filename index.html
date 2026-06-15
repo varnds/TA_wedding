@@ -86,9 +86,9 @@
   .story-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 940px; margin: 56px auto; }
   .story-duo-item { border-radius: 6px; overflow: hidden; box-shadow: 0 12px 36px rgba(58,70,54,.14); }
   .story-duo-item img { width: 100%; height: 420px; object-fit: cover; display: block; }
-  .story-final { max-width: 640px; margin: 0 auto; text-align: center; padding-top: 16px; }
-  .story-final p { font-size: clamp(15px, 2vw, 17px); line-height: 1.9; margin-bottom: 18px; color: #3c443c; }
-  .story-final p:last-child { font-family: 'Cormorant Garamond', serif; font-size: clamp(18px, 2.4vw, 22px); font-style: italic; color: var(--gold); margin-top: 32px; }
+  .story-img-final { position: relative; }
+  .story-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 48px 52px 40px; background: linear-gradient(to top, rgba(0,0,0,0.62) 0%, transparent 100%); }
+  .story-overlay p { font-family: 'Cormorant Garamond', serif; font-size: clamp(18px, 2.2vw, 24px); font-style: italic; color: #fff; line-height: 1.7; text-align: center; margin: 0; }
 
   .timeline { max-width: 660px; margin: 40px auto 0; }
   .event { display: grid; grid-template-columns: 130px 1fr; gap: 28px; align-items: start; padding: 30px 0; border-bottom: 1px solid var(--line); }
@@ -264,14 +264,12 @@
         </div>
       </div>
 
-      <!-- Full-width colour rowboat kiss -->
-      <div class="story-img-full">
+      <!-- Full-width colour rowboat kiss with overlay text -->
+      <div class="story-img-full story-img-final">
         <img src="img/image10.jpeg" alt="" loading="eager">
-      </div>
-
-      <!-- Final closing text -->
-      <div class="story-final">
-        <p>Some people spend years searching. Anand and Tiuli needed exactly one month, one walk, and one questionable first date recommendation to find the love of their lives.</p>
+        <div class="story-overlay">
+          <p>Some people spend years searching. Anand and Tiuli needed exactly one month, one walk, and one questionable first date recommendation to find the love of their lives.</p>
+        </div>
       </div>
 
     </div>
