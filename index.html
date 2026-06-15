@@ -550,6 +550,7 @@
   <p class="gal-modal-caption" id="galModalCaption"></p>
 </div>
 
+<script>
   // Gallery modal
   (function () {
     var modal = document.getElementById('galModal');
@@ -571,6 +572,7 @@
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
   })();
+</script>
 
 </body>
 </html>
