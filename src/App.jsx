@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import {
   Sun,
   X,
@@ -6,6 +6,7 @@ import {
   Snowflake,
   Flower,
   Moon,
+  Box,
 } from "lucide-react";
 import {
   INTRO_HOLD_MS,
@@ -55,7 +56,8 @@ import {
   BIRD_PERCH_Y,
 } from "./introMath";
 import { CaseStudyEditorial } from "./CaseStudyEditorial";
-import { AboutPage } from "./AboutPage";
+
+const Scene3D = lazy(() => import("./scene3d/Scene3D").then((m) => ({ default: m.Scene3D })));
 
 const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 const DISPLAY = "'Fraunces', serif";
@@ -880,13 +882,6 @@ export default function App() {
   const studyScrollRef = useRef(null);
   const [fireflies, setFireflies] = useState([]);
 
-  const [aboutViewOpen, setAboutViewOpen] = useState(false);
-  const [aboutViewClosing, setAboutViewClosing] = useState(false);
-  const [aboutViewEntered, setAboutViewEntered] = useState(false);
-  const aboutScrollRef = useRef(null);
-  const aboutCloseTimerRef = useRef(null);
-
-  const [aboutLayoutId, setAboutLayoutId] = useState("fold");
   const [projectLayoutId, setProjectLayoutId] = useState("fold");
 
   const [isAdding, setIsAdding] = useState(false);
@@ -897,6 +892,14 @@ export default function App() {
   const [newNote, setNewNote] = useState("Interactive UI case study");
   const [addError, setAddError] = useState("");
   const [seasonsClicked, setSeasonsClicked] = useState(() => new Set());
+  const [scene3D, setScene3D] = useState(false);
+  // Manage an immersive cross-fade in/out of the 3D world: keep the canvas
+  // mounted through the fade-out, and re-key it on each entry so the intro
+  // camera dolly replays.
+  const [keepMounted3D, setKeepMounted3D] = useState(false);
+  const [enter3D, setEnter3D] = useState(false);
+  const [entry3DCount, setEntry3DCount] = useState(0);
+  const scene3DRef = useRef(false);
   const [sockAnimProgress, setSockAnimProgress] = useState(0);
   const [sockSettleProgress, setSockSettleProgress] = useState(0);
   const [sockRevealDone, setSockRevealDone] = useState(false);
@@ -929,6 +932,23 @@ export default function App() {
   const [introPlayId, setIntroPlayId] = useState(0);
   const introActive = !introComplete;
   introCompleteRef.current = introComplete;
+  scene3DRef.current = scene3D;
+
+  useEffect(() => {
+    if (introComplete) void import("./scene3d/Scene3D");
+  }, [introComplete]);
+
+  useEffect(() => {
+    if (scene3D) {
+      setKeepMounted3D(true);
+      setEntry3DCount((c) => c + 1);
+      setEnter3D(false);
+      return undefined;
+    }
+    setEnter3D(false);
+    const t = setTimeout(() => setKeepMounted3D(false), 850);
+    return () => clearTimeout(t);
+  }, [scene3D]);
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -1131,19 +1151,6 @@ export default function App() {
   }, [projectViewOpen, projectViewClosing]);
 
   useEffect(() => {
-    if (!aboutViewOpen || aboutViewClosing) return undefined;
-    setAboutViewEntered(false);
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => setAboutViewEntered(true));
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-    };
-  }, [aboutViewOpen, aboutViewClosing]);
-
-  useEffect(() => {
     if (!projectViewEntered) {
       setProjectViewSettled(false);
       return undefined;
@@ -1231,14 +1238,13 @@ export default function App() {
   }, [sockNoteOpen]);
 
   useEffect(() => {
-    const viewActive = projectViewOpen || projectViewClosing || aboutViewOpen || aboutViewClosing;
+    const viewActive = projectViewOpen || projectViewClosing;
     if (!viewActive) return undefined;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
       if (e.key !== "Escape") return;
-      if (aboutViewOpen) closeAbout();
-      else closeProjectView();
+      closeProjectView();
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -1246,14 +1252,11 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectViewOpen, projectViewClosing, aboutViewOpen, aboutViewClosing]);
+  }, [projectViewOpen, projectViewClosing]);
 
   useEffect(() => () => {
     if (projectViewCloseTimerRef.current) {
       clearTimeout(projectViewCloseTimerRef.current);
-    }
-    if (aboutCloseTimerRef.current) {
-      clearTimeout(aboutCloseTimerRef.current);
     }
   }, []);
 
@@ -1360,67 +1363,24 @@ export default function App() {
     );
   };
 
-  const finishAboutClose = () => {
-    if (aboutCloseTimerRef.current) {
-      clearTimeout(aboutCloseTimerRef.current);
-      aboutCloseTimerRef.current = null;
-    }
-    setAboutViewOpen(false);
-    setAboutViewClosing(false);
-    setAboutViewEntered(false);
-  };
-
-  const closeAbout = () => {
-    if (!aboutViewOpen || aboutViewClosing) return;
-    setAboutViewClosing(true);
-    aboutCloseTimerRef.current = window.setTimeout(finishAboutClose, 420);
-  };
-
-  const openAbout = () => {
-    if (aboutCloseTimerRef.current) {
-      clearTimeout(aboutCloseTimerRef.current);
-      aboutCloseTimerRef.current = null;
-    }
-    if (aboutScrollRef.current) aboutScrollRef.current.scrollTop = 0;
-    setAboutViewClosing(false);
-    setAboutViewEntered(false);
-    setAboutViewOpen(true);
-  };
-
   const handleEditorialNav = (dest) => {
     if (dest === "work") {
-      closeAbout();
       closeProjectView();
       setSelectedId(null);
       setHot(null);
-      return;
-    }
-    if (dest === "about") {
-      closeProjectView();
-      setSelectedId(null);
-      setHot(null);
-      openAbout();
       return;
     }
     if (dest === "contact") {
       closeProjectView();
       setSelectedId(null);
       setHot(null);
-      if (!aboutViewOpen) {
-        openAbout();
-        window.setTimeout(() => {
-          document.getElementById("about-contact")?.scrollIntoView({ behavior: "smooth" });
-        }, 480);
-      } else {
-        document.getElementById("about-contact")?.scrollIntoView({ behavior: "smooth" });
-      }
+      window.location.href = "mailto:hello@varnadas.com";
     }
   };
 
   const handleEditorialProjectSelect = (index) => {
     const piece = portfolioPieces[index];
     if (!piece) return;
-    closeAbout();
     const wasOpen = projectViewOpen;
     setSelectedId(piece.id);
     setHot(piece.id);
@@ -1921,7 +1881,7 @@ export default function App() {
     }
   };
 
-  const nav = ["WORK", "ABOUT", "CREATIVE WORK", "CONTACT"];
+  const nav = ["WORK", "CREATIVE WORK", "CONTACT"];
 
   const nightFooterLit = isNight && lanternOn;
   const nightFooterDim = isNight && !lanternOn;
@@ -2026,7 +1986,7 @@ export default function App() {
       }}
     >
       {/* WIND PARTICLES & ATMOSPHERIC EFFECTS */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1, opacity: 0.95 }}>
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1, opacity: enter3D ? 0 : 0.95, transition: "opacity 0.85s ease" }}>
         <svg style={{ width: "100%", height: "100%" }}>
           {renderSeasonalParticles()}
           {isNight && meteor && (
@@ -2079,6 +2039,71 @@ export default function App() {
           flexDirection: "column",
         }}>
 
+          {keepMounted3D && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 1,
+                opacity: enter3D ? 1 : 0,
+                transition: "opacity 0.85s ease",
+                pointerEvents: enter3D ? "auto" : "none",
+              }}
+            >
+            <Suspense fallback={null}>
+            <Scene3D
+              active={scene3D}
+              entryKey={entry3DCount}
+              onTransitionReady={() => {
+                if (scene3DRef.current) {
+                  requestAnimationFrame(() => setEnter3D(true));
+                }
+              }}
+              palette={P}
+              seasonKey={currentSeasonKey}
+              lanternOn={lanternOn}
+              onToggleLantern={() => {
+                if (currentSeasonKey !== "night") return;
+                setLanternOn((v) => {
+                  playLampSound(!v);
+                  return !v;
+                });
+              }}
+              onChimeStrike={playChimeSound}
+              onChirp={playChirpSound}
+              ropeControlY={ropeControlY}
+              rightPostBottom={RIGHT_POST_BOTTOM}
+              pieces={pieces.filter((pc) => !pc.isSock || (sockOnLine && (sockAnimating || sockRevealDone || introComplete)))}
+              hangPositions={hangPositions}
+              windStrength={windStrength}
+              hot={hot}
+              selectedId={selectedId}
+              onGarmentPointerOver={(id) => {
+                if (!introComplete || projectFocusActive) return;
+                setHot(id);
+              }}
+              onGarmentPointerOut={() => {
+                if (!introComplete) return;
+                if (selectedId === null) setHot(null);
+              }}
+              onGarmentClick={(pc) => {
+                if (!introComplete) return;
+                if (pc.isSock) {
+                  if (sockRevealDone) setSockNoteOpen(true);
+                  return;
+                }
+                if (selectedId === pc.id) {
+                  setSelectedId(null);
+                  return;
+                }
+                setHot(pc.id);
+                setSelectedId(pc.id);
+              }}
+            />
+            </Suspense>
+            </div>
+          )}
+
           <svg
             ref={svgRef}
             viewBox={activeViewBox}
@@ -2089,7 +2114,9 @@ export default function App() {
               display: "block",
               flex: 1,
               minHeight: viewportWidth < 768 ? 380 : undefined,
-              pointerEvents: introComplete ? "auto" : "none",
+              pointerEvents: enter3D ? "none" : (introComplete ? "auto" : "none"),
+              opacity: enter3D ? 0 : 1,
+              transition: "opacity 0.85s ease",
             }}
             onClick={handleGroundInteraction}
           >
@@ -3232,12 +3259,62 @@ export default function App() {
             </div>
           </div>
 
-          {/* Vertical glassy season toggle (icon-only), floating top-right */}
+          {/* View mode + season controls, floating top-right */}
           <div
             style={{
             position: "absolute",
             top: 24,
             right: 24,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
+            zIndex: 12,
+            opacity: introComplete
+              ? (isNight && !lanternOn ? 0.58 : 1)
+              : intro.toggleOpacity * (isNight && !lanternOn ? 0.58 : 1),
+            pointerEvents: introComplete || intro.toggleOpacity > 0.5 ? "auto" : "none",
+            transform: introComplete ? "translateY(0)" : `translateY(${(1 - intro.toggleOpacity) * 10}px)`,
+            filter: isNight && !lanternOn ? "brightness(0.88) saturate(0.85)" : "none",
+            transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.85s ease, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1), filter 0.45s ease"
+          }}>
+            <button
+              type="button"
+              onClick={() => setScene3D((v) => !v)}
+              title={scene3D ? "Switch to 2D view" : "Switch to 3D view"}
+              aria-label={scene3D ? "Switch to 2D view" : "Switch to 3D view"}
+              aria-pressed={scene3D}
+              style={{
+                width: 48,
+                height: 36,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "0 10px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: scene3D ? `1px solid ${P.accent}88` : `1px solid ${P.cloth}66`,
+                background: scene3D ? `${P.accent}CC` : `${P.cloth}30`,
+                color: scene3D ? P.cloth : P.ink,
+                backdropFilter: "blur(20px) saturate(180%)",
+                WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                boxShadow: scene3D
+                  ? `0 2px 8px ${P.accent}33, inset 0 1px 1px ${P.cloth}66`
+                  : `0 2px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.08)`,
+                fontFamily: MONO,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 1.5,
+                transition: "all 0.3s cubic-bezier(0.34, 1.4, 0.64, 1)",
+              }}
+            >
+              <Box size={14} strokeWidth={2} />
+              {scene3D ? "2D" : "3D"}
+            </button>
+
+          <div
+            style={{
             display: "flex",
             flexDirection: "column",
             gap: 6,
@@ -3248,14 +3325,6 @@ export default function App() {
             WebkitBackdropFilter: "blur(20px) saturate(180%)",
             border: `1px solid ${P.cloth}66`,
             boxShadow: `0 2px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 1px ${P.cloth}b3, inset 0 -1px 1px ${P.ink}0D`,
-            zIndex: 12,
-            opacity: introComplete
-              ? (isNight && !lanternOn ? 0.58 : 1)
-              : intro.toggleOpacity * (isNight && !lanternOn ? 0.58 : 1),
-            pointerEvents: introComplete || intro.toggleOpacity > 0.5 ? "auto" : "none",
-            transform: introComplete ? "translateY(0)" : `translateY(${(1 - intro.toggleOpacity) * 10}px)`,
-            filter: isNight && !lanternOn ? "brightness(0.88) saturate(0.85)" : "none",
-            transition: "all 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.85s ease, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1), filter 0.45s ease"
           }}>
             {Object.keys(SEASONS).map((key) => {
               const SeasonIcon = SEASONS[key].icon;
@@ -3293,6 +3362,39 @@ export default function App() {
               );
             })}
           </div>
+          </div>
+
+          {scene3D && introComplete && (
+            <div
+              style={{
+                position: "absolute",
+                left: 24,
+                bottom: 88,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 14px",
+                borderRadius: 999,
+                background: `${P.cloth}55`,
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: `1px solid ${P.cloth}88`,
+                fontFamily: MONO,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 1.8,
+                color: `${P.ink}CC`,
+                zIndex: 12,
+                pointerEvents: "none",
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path d="M4 2v8M8 4v8M12 6v8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <path d="M2 12h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+              </svg>
+              DRAG TO EXPLORE
+            </div>
+          )}
         </div>
 
         {/* Dynamic Clothes Creator Menu */}
@@ -3703,80 +3805,6 @@ export default function App() {
         );
       })()}
 
-      {(aboutViewOpen || aboutViewClosing) && (() => {
-        const sheetBg = isNight && lanternOn ? "#F5F0E6" : P.cloth;
-        const sheetInk = isNight && lanternOn ? "#1B2247" : P.ink;
-        const sheetBodyInk = isNight && lanternOn ? "#1B2247CC" : `${P.ink}CC`;
-        const seasonPalette = {
-          sky1: P.sky1,
-          sky2: P.sky2,
-          sky3: P.sky3,
-          sun: P.sun,
-          hill1: P.hill1,
-          hill2: P.hill2,
-          hill3: P.hill3,
-          isNight,
-        };
-        return (
-          <div className="project-view-frame">
-            <div
-              className={`project-view-scrim${
-                aboutViewEntered ? " is-visible" : ""
-              }${aboutViewClosing ? " is-closing" : ""}`}
-              style={{ background: "rgba(0, 0, 0, 0.025)" }}
-              onClick={closeAbout}
-              aria-hidden
-            />
-            <div
-              className={`page-overlay-sheet${
-                aboutViewEntered ? " is-entered" : ""
-              }${aboutViewClosing ? " is-closing" : ""}`}
-              style={{
-                background: sheetBg,
-                color: sheetInk,
-                "--sheet-bg": sheetBg,
-                "--cs-accent": P.accent,
-              }}
-              role="dialog"
-              aria-modal="true"
-              aria-label="About Varna Das"
-            >
-              <div className="project-grow-card-inner">
-                <div className="project-grow-card-body">
-                  <div className="project-grow-card-study about-overlay-study">
-                    <div ref={aboutScrollRef} className="project-view-sheet-scroll">
-                      <div className="project-grow-card-toolbar">
-                        <button
-                          type="button"
-                          className="project-view-sheet-close project-grow-card-fold is-visible"
-                          onClick={closeAbout}
-                          aria-label="Fold about page"
-                          style={{ color: sheetInk, borderColor: `${sheetInk}14` }}
-                        >
-                          <span>Fold</span>
-                          <X size={14} strokeWidth={2.25} aria-hidden />
-                        </button>
-                      </div>
-                      <div className="case-study-sheet-content case-study-sheet-content--card">
-                        <AboutPage
-                          ink={sheetInk}
-                          bodyInk={sheetBodyInk}
-                          accent={P.accent}
-                          cloth={P.cloth}
-                          clothTint={P.clothTint}
-                          season={seasonPalette}
-                          layoutId={aboutLayoutId}
-                          onLayoutChange={setAboutLayoutId}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* CSS ANIMATIONS */}
       <style>{`
@@ -4323,9 +4351,7 @@ export default function App() {
           font-size: 9px;
           letter-spacing: 0.06em;
         }
-        .about-page-wrap,
         .project-page-wrap { width: 100%; min-height: 100%; }
-        .about-layout--grid,
         .project-layout--grid {
           width: 100%;
           margin: 0;
@@ -4422,15 +4448,6 @@ export default function App() {
         @keyframes studioMarquee {
           from { transform: translateX(0); }
           to { transform: translateX(-28%); }
-        }
-        .about-portrait--studio {
-          aspect-ratio: 3 / 4;
-          background: rgba(255, 255, 255, 0.04);
-          border-radius: 2px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 3rem;
         }
         .project-studio-split {
           display: grid;
@@ -4543,69 +4560,6 @@ export default function App() {
           line-height: 1.4;
         }
         .studio-project-num { font-size: 11px; letter-spacing: 0.1em; }
-        .domini-about-split {
-          display: grid;
-          grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-          gap: 40px;
-          padding: 40px 0 48px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .about-portrait--domini {
-          aspect-ratio: 4 / 5;
-          border-radius: 2px;
-          border: 1px solid transparent;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .domini-about-kicker {
-          margin: 0 0 12px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .domini-about-title {
-          margin: 0 0 24px;
-          font-size: clamp(2rem, 4vw, 3rem);
-          line-height: 1.05;
-        }
-        .domini-about-bio {
-          font-size: clamp(1.05rem, 1.8vw, 1.25rem);
-          line-height: 1.65;
-        }
-        .domini-about-columns {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 40px;
-          padding: 40px 0;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .about-contact-form {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
-        .about-contact-field {
-          flex: 1 1 140px;
-          padding: 12px 18px;
-          border-radius: 999px;
-          border: 1px solid transparent;
-          font-size: 14px;
-          background: transparent;
-        }
-        .about-contact-submit {
-          padding: 12px 22px;
-          border: none;
-          border-radius: 999px;
-          font-size: 10px;
-          font-weight: 600;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          cursor: pointer;
-        }
-        .about-contact-note { margin: 12px 0 0; font-size: 14px; }
-        .about-layout--chromatic,
         .project-layout--chromatic {
           width: 100%;
           margin: 0;
@@ -4687,7 +4641,6 @@ export default function App() {
           padding: 0 48px 64px;
           border-radius: 16px 16px 0 0;
         }
-        .about-layout--frame,
         .project-layout--frame {
           width: 100%;
           margin: 0;
@@ -4797,1152 +4750,8 @@ export default function App() {
           letter-spacing: 0.1em;
           text-transform: uppercase;
         }
-        .about-page-wrap--grid .layout-tab-bar,
         .project-page-wrap--grid .layout-tab-bar {
           border-bottom-color: rgba(0, 0, 0, 0.07);
-        }
-        .about-layout--grid .studio-topbar,
-        .about-layout--grid .studio-grid,
-        .about-layout--grid .studio-marquee {
-          padding-left: 40px;
-          padding-right: 40px;
-        }
-        .about-layout--editorial,
-        .project-layout--editorial {
-          width: 100%;
-          margin: 0;
-          padding: 0 40px 64px;
-          box-sizing: border-box;
-        }
-        .ed-spread-chapter-row {
-          padding: 0 0 32px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-          margin-bottom: 40px;
-        }
-        .ed-spread-chapter-row .ed-spread-chapters {
-          flex-direction: row;
-          flex-wrap: wrap;
-          gap: 8px 24px;
-        }
-        .magazine-body { width: 100%; }
-        .magazine-visual--hero .cs-visual { margin: 0 0 48px; }
-        .magazine-row {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(280px, 42%);
-          gap: 40px;
-          margin-bottom: 56px;
-          align-items: start;
-        }
-        .magazine-row--reverse { grid-template-columns: 1fr; }
-        .magazine-num {
-          display: block;
-          margin-bottom: 10px;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-        }
-        .magazine-title {
-          margin: 0 0 16px;
-          font-size: clamp(1.75rem, 3vw, 2.5rem);
-          line-height: 1.05;
-        }
-        .magazine-copy p {
-          margin: 0;
-          font-size: 16px;
-          line-height: 1.7;
-        }
-        .magazine-steps {
-          list-style: none;
-          margin: 20px 0 0;
-          padding: 0;
-          display: grid;
-          gap: 12px;
-        }
-        .magazine-steps li {
-          display: grid;
-          grid-template-columns: 28px 1fr;
-          gap: 10px;
-          font-size: 15px;
-          line-height: 1.55;
-        }
-        .magazine-pullquote {
-          margin: 0 0 56px;
-          padding: 40px 0 40px 24px;
-          border-left: 4px solid;
-          font-size: clamp(1.5rem, 3vw, 2.25rem);
-          line-height: 1.35;
-        }
-        .magazine-impact { margin-bottom: 48px; }
-        .magazine-stats {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 20px;
-          margin-top: 24px;
-        }
-        .magazine-stat {
-          padding: 20px;
-          border: 1px solid;
-          border-radius: 8px;
-        }
-        .project-layout--spread,
-        .about-layout--spread {
-          width: 100%;
-          margin: 0;
-          padding: 0;
-        }
-        .spread-project-bar {
-          padding: 8px 40px 32px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .spread-project-bar button {
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          margin-bottom: 20px;
-        }
-        .spread-project-title {
-          margin: 8px 0 16px;
-          font-size: clamp(2.5rem, 6vw, 4.5rem);
-          line-height: 0.95;
-          letter-spacing: -0.03em;
-        }
-        .spread-project-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 16px 28px;
-          margin-bottom: 16px;
-          font-size: 10px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-        .spread-project-lead {
-          margin: 0 0 20px;
-          max-width: 60ch;
-          font-size: 1.05rem;
-          line-height: 1.6;
-        }
-        .spread-project-chapters .ed-spread-chapters {
-          flex-direction: row;
-          flex-wrap: wrap;
-          gap: 8px 20px;
-        }
-        .spread-study { width: 100%; }
-        .spread-band { width: 100%; }
-        .spread-band--visual {
-          padding: 0;
-          background: #EFEFED;
-        }
-        .spread-band--visual .cs-visual { margin: 0; }
-        .spread-band--visual .cs-visual-frame { border-radius: 0; }
-        .spread-band--text,
-        .spread-band--quote,
-        .spread-band--stats {
-          padding: 48px 40px;
-        }
-        .spread-band--quote {
-          background: rgba(0, 0, 0, 0.03);
-        }
-        .spread-num {
-          display: block;
-          margin-bottom: 12px;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-        }
-        .spread-title {
-          margin: 0 0 16px;
-          font-size: clamp(1.75rem, 3.5vw, 2.75rem);
-          line-height: 1.05;
-        }
-        .spread-body {
-          margin: 0;
-          max-width: 62ch;
-          font-size: 16px;
-          line-height: 1.7;
-        }
-        .spread-quote {
-          margin: 0;
-          font-size: clamp(1.5rem, 3vw, 2.25rem);
-          line-height: 1.35;
-          max-width: 28ch;
-        }
-        .spread-steps {
-          list-style: none;
-          margin: 20px 0 0;
-          padding: 0;
-          display: grid;
-          gap: 10px;
-          max-width: 62ch;
-        }
-        .spread-steps li {
-          display: grid;
-          grid-template-columns: 28px 1fr;
-          gap: 10px;
-          font-size: 15px;
-          line-height: 1.55;
-        }
-        .spread-stats {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 20px;
-          margin-top: 28px;
-          max-width: 720px;
-        }
-        .spread-stat-value {
-          font-size: clamp(1.75rem, 3vw, 2.25rem);
-          line-height: 1;
-        }
-        .spread-stat-label {
-          margin-top: 8px;
-          font-size: 9px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          opacity: 0.7;
-        }
-        .spread-about-head {
-          padding: 8px 40px 32px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .spread-about-head button {
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          margin-bottom: 24px;
-        }
-        .spread-about-name {
-          margin: 0 0 8px;
-          font-size: clamp(3rem, 8vw, 5.5rem);
-          line-height: 0.92;
-          letter-spacing: -0.04em;
-        }
-        .spread-about-role {
-          margin: 0 0 16px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .spread-about-email {
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-decoration: none;
-        }
-        .spread-about-bio {
-          padding: 40px;
-          display: grid;
-          gap: 1.2em;
-          font-size: clamp(1.05rem, 1.8vw, 1.25rem);
-          line-height: 1.65;
-          max-width: 72ch;
-        }
-        .spread-about-table {
-          padding: 0 40px 64px;
-          display: grid;
-          gap: 40px;
-        }
-        .spread-about-table h2 {
-          margin: 0 0 16px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .spread-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .spread-table td {
-          padding: 14px 16px 14px 0;
-          border-bottom: 1px solid;
-          vertical-align: top;
-        }
-        .spread-table td:first-child { width: 120px; }
-        .ed-spread-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 0 28px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .ed-spread-bar button {
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-        .ed-spread-bar-links { display: flex; gap: 20px; }
-        .ed-spread-hero {
-          margin: 0 -40px;
-          padding: 48px 40px 56px;
-        }
-        .ed-spread-hero-kicker {
-          margin: 0 0 16px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          opacity: 0.72;
-        }
-        .ed-spread-hero-name,
-        .ed-spread-hero-title {
-          margin: 0;
-          font-size: clamp(3.5rem, 9vw, 6.5rem);
-          line-height: 0.92;
-          letter-spacing: -0.04em;
-          max-width: 12ch;
-        }
-        .ed-spread-hero-num {
-          display: block;
-          margin-bottom: 12px;
-          font-size: 11px;
-          letter-spacing: 0.12em;
-          opacity: 0.7;
-        }
-        .ed-spread-hero-lead {
-          margin: 20px 0 0;
-          max-width: 52ch;
-          font-size: clamp(1rem, 1.8vw, 1.2rem);
-          line-height: 1.55;
-          opacity: 0.9;
-        }
-        .ed-spread-hero-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-top: 28px;
-        }
-        .ed-spread-tag {
-          padding: 8px 14px;
-          border: 1px solid;
-          border-radius: 999px;
-          font-size: 9px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-        .ed-spread-main {
-          display: grid;
-          grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
-          gap: 48px;
-          padding-top: 48px;
-        }
-        .ed-spread-aside { position: sticky; top: 24px; align-self: start; }
-        .ed-spread-portrait {
-          aspect-ratio: 4 / 5;
-          border: 1px solid;
-          border-radius: 2px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 3rem;
-          margin-bottom: 28px;
-        }
-        .ed-spread-contact-lead {
-          margin: 0 0 12px;
-          font-size: 1.25rem;
-          line-height: 1.35;
-        }
-        .ed-spread-contact a {
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-decoration: none;
-        }
-        .ed-spread-bio-p {
-          margin: 0 0 1.4em;
-          font-size: clamp(1.2rem, 2.2vw, 1.65rem);
-          line-height: 1.55;
-        }
-        .ed-spread-timeline {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 40px;
-          margin-top: 48px;
-          padding-top: 40px;
-          border-top: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .ed-spread-timeline h2 {
-          margin: 0 0 20px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .ed-spread-timeline-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 0;
-        }
-        .ed-spread-timeline-list li {
-          display: grid;
-          gap: 4px;
-          padding: 18px 0;
-          border-bottom: 1px solid;
-        }
-        .ed-spread-timeline-role { font-size: 1.1rem; line-height: 1.2; }
-        .ed-spread-project-body {
-          display: grid;
-          grid-template-columns: 160px minmax(0, 1fr);
-          gap: 32px;
-          padding-top: 40px;
-        }
-        .ed-spread-project-rail {
-          position: sticky;
-          top: 24px;
-          align-self: start;
-        }
-        .ed-spread-chapters {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        .ed-spread-chapter {
-          display: grid;
-          grid-template-columns: 28px 1fr;
-          gap: 8px;
-          text-decoration: none;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-        .chrom-immersion-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 0 24px;
-        }
-        .chrom-immersion-bar button {
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-        .chrom-immersion-name {
-          margin: 0;
-          font-size: clamp(4rem, 16vw, 11rem);
-          line-height: 0.82;
-          letter-spacing: -0.05em;
-          text-transform: uppercase;
-        }
-        .chrom-immersion-name-line2 {
-          display: block;
-          margin-left: clamp(2rem, 12vw, 8rem);
-        }
-        .chrom-immersion-role {
-          margin: 16px 0 32px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          opacity: 0.72;
-        }
-        .chrom-immersion-portrait-ring {
-          display: flex;
-          justify-content: center;
-          margin: 0 0 40px;
-        }
-        .chrom-immersion-portrait {
-          width: min(220px, 42vw);
-          aspect-ratio: 1;
-          border-radius: 50%;
-          background: rgba(0, 0, 0, 0.14);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 3rem;
-        }
-        .chrom-immersion-bio {
-          display: grid;
-          gap: 20px;
-          max-width: 680px;
-          margin-bottom: 40px;
-        }
-        .chrom-immersion-bio-block {
-          margin: 0;
-          font-size: clamp(1rem, 1.8vw, 1.2rem);
-          line-height: 1.65;
-          padding: 20px 24px;
-          border-radius: 4px;
-          background: rgba(255, 255, 255, 0.08);
-        }
-        .chrom-immersion-scroll {
-          overflow-x: auto;
-          margin: 0 -48px 32px;
-          padding: 0 48px 8px;
-          -webkit-overflow-scrolling: touch;
-        }
-        .chrom-immersion-scroll-track {
-          display: flex;
-          gap: 16px;
-          width: max-content;
-        }
-        .chrom-immersion-card {
-          width: 240px;
-          padding: 20px;
-          border: 1px solid;
-          border-radius: 8px;
-          display: grid;
-          gap: 8px;
-        }
-        .chrom-immersion-services {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px 28px;
-          margin-bottom: 40px;
-        }
-        .chrom-immersion-service {
-          font-size: clamp(1.25rem, 2.5vw, 1.75rem);
-          line-height: 1.1;
-        }
-        .chrom-immersion-service::before { content: "— "; opacity: 0.5; }
-        .chrom-immersion-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          padding-top: 28px;
-          border-top: 1px solid;
-        }
-        .chrom-immersion-footer p {
-          margin: 0;
-          font-size: clamp(1.5rem, 3vw, 2.25rem);
-        }
-        .chrom-immersion-footer a {
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-decoration: none;
-        }
-        .chrom-project-title {
-          margin: 0 0 16px;
-          font-size: clamp(3rem, 10vw, 5.5rem);
-          line-height: 0.9;
-          letter-spacing: -0.04em;
-        }
-        .chrom-project-lead {
-          margin: 0 0 24px;
-          max-width: 56ch;
-          font-size: 1.1rem;
-          line-height: 1.55;
-          opacity: 0.88;
-        }
-        .chrom-project-meta-pills {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-bottom: 32px;
-        }
-        .chrom-project-pill {
-          padding: 8px 14px;
-          border: 1px solid;
-          border-radius: 999px;
-          font-size: 9px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-        .chrom-study { margin: 0 -48px; }
-        .chrom-panel {
-          margin: 0 0 2px;
-          padding: 40px 48px;
-        }
-        .chrom-panel-num {
-          display: block;
-          margin-bottom: 12px;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-        }
-        .chrom-panel-title {
-          margin: 0 0 16px;
-          font-size: clamp(1.75rem, 4vw, 2.5rem);
-          line-height: 1.05;
-        }
-        .chrom-panel-body {
-          margin: 0;
-          max-width: 58ch;
-          font-size: 1.05rem;
-          line-height: 1.65;
-        }
-        .chrom-panel--quote { padding: 56px 48px; }
-        .chrom-quote {
-          margin: 0;
-          font-size: clamp(1.75rem, 4vw, 2.75rem);
-          line-height: 1.25;
-          max-width: 22ch;
-        }
-        .chrom-steps {
-          list-style: none;
-          margin: 24px 0 0;
-          padding: 0;
-          display: grid;
-          gap: 0;
-        }
-        .chrom-steps li {
-          display: grid;
-          grid-template-columns: 36px 1fr;
-          gap: 12px;
-          padding: 16px 0;
-          border-top: 1px solid;
-          font-size: 1rem;
-          line-height: 1.5;
-        }
-        .chrom-bleed { margin: 0 0 2px; }
-        .chrom-bleed .cs-visual-frame { border-radius: 0; }
-        .chrom-bleed--inset { padding: 0 48px 2px; }
-        .chrom-stats {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 20px;
-          margin-top: 28px;
-        }
-        .chrom-stat {
-          padding: 20px;
-          border: 1px solid;
-          border-radius: 8px;
-        }
-        .chrom-stat-value {
-          font-size: clamp(1.75rem, 3vw, 2.25rem);
-          line-height: 1;
-        }
-        .chrom-stat-label {
-          margin-top: 8px;
-          font-size: 9px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          opacity: 0.7;
-        }
-        .chrom-dock {
-          position: sticky;
-          bottom: 0;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          padding: 16px 0 8px;
-          margin-top: 24px;
-          backdrop-filter: blur(8px);
-        }
-        .chrom-dock-link {
-          padding: 10px 16px;
-          border: 1px solid;
-          border-radius: 999px;
-          text-decoration: none;
-          font-size: 9px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-        .frame-stage {
-          position: relative;
-          width: 100%;
-          border-radius: 28px;
-          padding: 36px 40px 56px;
-          overflow: hidden;
-          box-sizing: border-box;
-        }
-        .frame-stage-head {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 24px;
-          margin-bottom: 36px;
-        }
-        .frame-stage-head button {
-          border: none;
-          background: none;
-          cursor: pointer;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-        .frame-stage-display {
-          font-size: clamp(4rem, 12vw, 7rem);
-          line-height: 0.82;
-          letter-spacing: -0.04em;
-        }
-        .frame-stage-intro {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
-          gap: 28px;
-          align-items: center;
-          margin-bottom: 28px;
-        }
-        .frame-bubble {
-          border: 1px solid;
-          border-radius: 24px;
-          padding: 24px 28px;
-        }
-        .frame-bubble--lg { border-radius: 32px; }
-        .frame-bubble-kicker {
-          margin: 0 0 10px;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-        .frame-bubble-title {
-          margin: 0;
-          font-size: clamp(1.5rem, 3vw, 2.25rem);
-          line-height: 1.15;
-        }
-        .frame-bubble-row {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
-          margin-bottom: 28px;
-        }
-        .frame-bubble--sm p { margin: 0; font-size: 15px; line-height: 1.6; }
-        .frame-bubble--tilt-0 { transform: rotate(-1.5deg); }
-        .frame-bubble--tilt-1 { transform: rotate(1deg); }
-        .frame-bubble--tilt-2 { transform: rotate(-0.5deg); }
-        .frame-orbit {
-          position: relative;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 220px;
-        }
-        .frame-orbit-ring {
-          position: absolute;
-          width: 200px;
-          height: 200px;
-          border: 2px dashed;
-          border-radius: 50%;
-        }
-        .frame-orbit-photo {
-          width: 140px;
-          height: 140px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 2.5rem;
-        }
-        .frame-orbit-sticker {
-          position: absolute;
-          top: 12px;
-          right: 0;
-          padding: 10px 14px;
-          border-radius: 999px;
-          text-decoration: none;
-          font-size: 9px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          transform: rotate(8deg);
-        }
-        .frame-chip-rail {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-bottom: 24px;
-        }
-        .frame-career-chip {
-          padding: 10px 16px;
-          border-radius: 999px;
-          font-size: 9px;
-          letter-spacing: 0.06em;
-        }
-        .frame-study-cards {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-        .frame-study-card {
-          padding: 20px;
-          border: 1px solid;
-          border-radius: 20px;
-          display: grid;
-          gap: 6px;
-        }
-        .frame-watermark {
-          position: absolute;
-          top: 40px;
-          right: 24px;
-          font-size: clamp(8rem, 20vw, 14rem);
-          line-height: 1;
-          pointer-events: none;
-          user-select: none;
-        }
-        .frame-project-eyebrow {
-          display: block;
-          margin-bottom: 10px;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-        .frame-project-hero-title {
-          margin: 0;
-          font-size: clamp(2rem, 5vw, 3.5rem);
-          line-height: 1.02;
-        }
-        .frame-project-hero-lead {
-          margin: 0 0 20px;
-          font-size: 1.05rem;
-          line-height: 1.55;
-        }
-        .frame-chips {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 16px;
-        }
-        .frame-chip {
-          padding: 8px 14px;
-          border: 1px solid;
-          border-radius: 999px;
-          text-decoration: none;
-          font-size: 9px;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-        }
-        .frame-hero-visual { margin-bottom: 24px; }
-        .frame-hero-visual .cs-visual-frame { border-radius: 20px; }
-        .frame-bento {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 16px;
-        }
-        .frame-tile {
-          border: 1px solid;
-          border-radius: 22px;
-          padding: 24px;
-        }
-        .frame-tile--span2 { grid-column: span 2; }
-        .frame-tile--quote { border-radius: 28px; }
-        .frame-tile--visual { padding: 0; border: none; background: transparent; }
-        .frame-tile--visual .cs-visual { margin: 0; }
-        .frame-tile--visual .cs-visual-frame { border-radius: 20px; }
-        .frame-tile-num {
-          display: block;
-          margin-bottom: 10px;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-        }
-        .frame-tile-title {
-          margin: 0 0 12px;
-          font-size: 1.5rem;
-          line-height: 1.1;
-        }
-        .frame-tile-body {
-          margin: 0;
-          font-size: 15px;
-          line-height: 1.65;
-        }
-        .frame-tile-quote {
-          margin: 0;
-          font-size: clamp(1.35rem, 2.5vw, 1.85rem);
-          line-height: 1.35;
-        }
-        .frame-tile-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 12px;
-        }
-        .frame-tile-list li {
-          display: grid;
-          grid-template-columns: 28px 1fr;
-          gap: 8px;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-        .frame-stat-pills {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 20px;
-        }
-        .frame-stat-pill {
-          padding: 16px 20px;
-          border-radius: 18px;
-          display: grid;
-          gap: 4px;
-        }
-        .frame-stat-pill-value { font-size: 1.5rem; line-height: 1; }
-        .frame-stat-pill-label {
-          font-size: 9px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          opacity: 0.85;
-        }
-        .case-study-sheet-content {
-          width: 100%;
-          max-width: none;
-          margin: 0;
-          padding: 0 48px 80px;
-          box-sizing: border-box;
-        }
-        .case-study-sheet-content--fill {
-          padding: 0;
-        }
-        .case-study-sheet-content--card {
-          padding: 0;
-        }
-        .layout-tab-bar--inset {
-          margin: 0;
-          padding: 12px 40px 20px;
-        }
-        .layout-tab-bar--card {
-          margin: 0;
-          padding: 8px 24px 14px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .project-page-wrap--card {
-          padding: 0 0 28px;
-        }
-        .project-layout--line,
-        .project-layout--fold,
-        .project-layout--sky,
-        .project-layout--hills {
-          width: 100%;
-          margin: 0;
-        }
-        .motif-rope-sway {
-          animation: lineSway 5.2s ease-in-out infinite;
-          transform-origin: center;
-        }
-        .motif-garment-swatch {
-          position: relative;
-          width: 44px;
-          height: 52px;
-          border-radius: 4px;
-          border: 1px solid;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-        .motif-garment-swatch-inner {
-          position: absolute;
-          inset: 0;
-        }
-        .motif-garment-pin {
-          position: absolute;
-          top: -3px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-        }
-        .card-study-header {
-          padding: 8px 28px 20px;
-        }
-        .card-study-header-top {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 16px;
-          margin-bottom: 10px;
-        }
-        .card-study-num {
-          font-size: 10px;
-          letter-spacing: 0.12em;
-        }
-        .card-study-title {
-          margin: 0 0 10px;
-          font-size: clamp(1.65rem, 4vw, 2.25rem);
-          line-height: 1.05;
-        }
-        .card-study-lead {
-          margin: 0 0 16px;
-          font-size: 14px;
-          line-height: 1.55;
-        }
-        .card-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 16px 24px;
-          margin: 0;
-        }
-        .card-meta div { display: grid; gap: 3px; }
-        .card-meta dt {
-          font-size: 9px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-        .card-meta dd { margin: 0; font-size: 13px; }
-        .peg-chapters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px 14px;
-          padding: 0 28px 16px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .peg-chapter {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          text-decoration: none;
-          font-size: 9px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-        .peg-chapter .motif-peg {
-          display: inline-flex;
-          transform: scale(0.85);
-        }
-        .card-body {
-          padding: 20px 28px 8px;
-        }
-        .card-body .cs-visual {
-          margin: 0 0 24px;
-        }
-        .card-body .cs-visual-frame {
-          border-radius: 10px;
-          aspect-ratio: 16 / 10;
-        }
-        .card-section {
-          margin-bottom: 28px;
-          padding-top: 4px;
-        }
-        .card-section--peg {
-          border-top: 1px dashed rgba(0, 0, 0, 0.08);
-          padding-top: 20px;
-        }
-        .card-section-num {
-          display: block;
-          font-size: 9px;
-          letter-spacing: 0.12em;
-          margin-bottom: 6px;
-        }
-        .card-section-title {
-          margin: 0 0 10px;
-          font-size: 9px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .card-quote {
-          margin: 0;
-          padding-left: 16px;
-          border-left: 2px solid;
-          font-size: 1.15rem;
-          line-height: 1.4;
-        }
-        .card-steps {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 8px;
-        }
-        .card-steps li {
-          display: grid;
-          grid-template-columns: 24px 1fr;
-          gap: 8px;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-        .card-metrics {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-        }
-        .card-metric {
-          padding: 12px;
-          border: 1px solid;
-          border-radius: 8px;
-        }
-        .project-layout--fold {
-          position: relative;
-          overflow: hidden;
-        }
-        .fold-texture {
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-        }
-        .fold-hue-band {
-          height: 6px;
-          border-bottom: 1px solid;
-        }
-        .fold-inner {
-          position: relative;
-        }
-        .fold-fabric-label {
-          font-size: 9px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-        .project-layout--sky,
-        .about-layout--sky {
-          display: flex;
-          flex-direction: column;
-          min-height: 100%;
-        }
-        .scene-sky-hero {
-          position: relative;
-          flex: 0 0 min(38vh, 320px);
-          min-height: 220px;
-        }
-        .scene-sky-hero .motif-season-sky {
-          position: absolute;
-          inset: 0;
-        }
-        .motif-season-sky {
-          display: block;
-          width: 100%;
-          height: 100%;
-        }
-        .scene-sky-hero-copy {
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          padding: 0 28px 22px;
-          z-index: 1;
-        }
-        .scene-sky-body {
-          flex: 1;
-          min-height: 0;
-          padding: 8px 28px 28px;
-        }
-        .project-layout--hills,
-        .about-layout--hills {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          min-height: 100%;
-        }
-        .scene-hills-backdrop {
-          position: absolute;
-          inset: 0;
-          z-index: 0;
-          overflow: hidden;
-        }
-        .scene-hills-sky {
-          width: 100%;
-          height: 100%;
-        }
-        .scene-hills-content {
-          position: relative;
-          z-index: 1;
-          flex: 1;
-          min-height: 0;
-          margin-bottom: min(26vh, 200px);
-        }
-        .scene-hills-foot {
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          z-index: 2;
-          height: min(28vh, 220px);
-          min-height: 140px;
-          pointer-events: none;
-        }
-        .motif-season-hills {
-          display: block;
-          width: 100%;
-          height: 100%;
-        }
-        .about-layout--sky .scene-sky-body,
-        .about-layout--hills .scene-hills-content {
-          padding-bottom: 32px;
-        }
-        .about-layout--hills .scene-hills-content .about-card-body,
-        .about-layout--hills .about-card-body {
-          padding: 0 28px 8px;
-        }
-        .project-layout--line .motif-clothesline {
-          margin: 4px 20px 0;
-          width: calc(100% - 40px);
         }
         .page-overlay-sheet {
           position: fixed;
@@ -5961,14 +4770,6 @@ export default function App() {
           display: flex;
           flex-direction: column;
         }
-        .page-overlay-sheet .project-grow-card-inner,
-        .page-overlay-sheet .project-grow-card-body {
-          flex: 1;
-          min-height: 0;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-        }
         .page-overlay-sheet.is-entered {
           opacity: 1;
           transform: none;
@@ -5978,104 +4779,6 @@ export default function App() {
           transform: translateY(12px);
           pointer-events: none;
           transition: opacity 0.32s ease, transform 0.34s ease;
-        }
-        .about-page-wrap--card {
-          padding: 0 0 24px;
-        }
-        .about-layout--line,
-        .about-layout--fold,
-        .about-layout--sky,
-        .about-layout--hills {
-          width: 100%;
-          margin: 0;
-        }
-        .about-layout--line .motif-clothesline {
-          margin: 4px 20px 0;
-          width: calc(100% - 40px);
-        }
-        .about-card-kicker {
-          margin: 0 0 6px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .about-card-place {
-          margin: 6px 0 0;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-        }
-        .about-card-body {
-          padding: 0 28px 8px;
-        }
-        .about-card-section {
-          margin-bottom: 24px;
-        }
-        .about-card-section--peg {
-          border-top: 1px dashed rgba(0, 0, 0, 0.08);
-          padding-top: 18px;
-        }
-        .about-card-section--peg .motif-peg {
-          display: inline-flex;
-          margin-bottom: 8px;
-          transform: scale(0.85);
-        }
-        .about-card-section-title {
-          margin: 0 0 12px;
-          font-size: 9px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .about-card-bio p {
-          margin: 0 0 1em;
-          font-size: 15px;
-          line-height: 1.65;
-        }
-        .about-card-bio p:last-child { margin-bottom: 0; }
-        .about-card-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 0;
-        }
-        .about-card-list li {
-          display: grid;
-          gap: 3px;
-          padding: 12px 0;
-          border-bottom: 1px solid;
-        }
-        .about-card-list li span:first-child { font-size: 10px; }
-        .about-card-list li span:nth-child(2) { font-size: 1rem; line-height: 1.2; }
-        .about-card-list li span:last-child { font-size: 13px; }
-        .about-card-timeline {
-          padding: 0 28px;
-        }
-        .about-card-contact {
-          padding: 8px 28px 4px;
-          border-top: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .about-card-contact-lead {
-          margin: 0 0 8px;
-          font-size: 1.1rem;
-          line-height: 1.35;
-        }
-        .about-card-contact a {
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-decoration: none;
-        }
-        .about-sky-copy {
-          padding-bottom: 26px;
-        }
-        .about-overlay-study {
-          flex: 1 !important;
-          min-height: 0 !important;
-          max-height: none !important;
-          opacity: 1 !important;
-          visibility: visible !important;
-          pointer-events: auto !important;
-          display: flex !important;
-          flex-direction: column !important;
         }
         .project-grow-card-fold.is-visible {
           opacity: 1;
@@ -6153,136 +4856,6 @@ export default function App() {
           width: 6px;
           height: 6px;
           border-radius: 50%;
-        }
-        .about-page {
-          display: block;
-        }
-        .about-hero-band {
-          margin: 0 -48px 0;
-          padding: 40px 48px 48px;
-        }
-        .about-hero-inner {
-          max-width: 1120px;
-          margin: 0 auto;
-        }
-        .about-hero-label {
-          margin: 0 0 12px;
-          font-size: 11px;
-          font-weight: 600;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          opacity: 0.82;
-        }
-        .about-hero-name {
-          margin: 0 0 16px;
-          font-size: clamp(3rem, 8vw, 5.5rem);
-          font-weight: 400;
-          line-height: 0.95;
-          letter-spacing: -0.03em;
-        }
-        .about-hero-tag {
-          margin: 0;
-          font-size: 10px;
-          font-weight: 500;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          opacity: 0.72;
-        }
-        .about-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 32px;
-          padding: 48px 0 64px;
-          border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-        }
-        .about-col-label {
-          margin: 0 0 24px;
-          font-size: 10px;
-          font-weight: 600;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-        .about-portrait {
-          aspect-ratio: 4 / 5;
-          border-radius: 4px;
-          border: 1px solid transparent;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 16px;
-        }
-        .about-portrait-monogram {
-          font-size: 3rem;
-          line-height: 1;
-        }
-        .about-location {
-          margin: 0;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-        .about-bio {
-          font-size: clamp(1.05rem, 1.6vw, 1.2rem);
-          line-height: 1.65;
-        }
-        .about-bio p {
-          margin: 0 0 1.1em;
-        }
-        .about-bio p:last-child {
-          margin-bottom: 0;
-        }
-        .about-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-        }
-        .about-list-item {
-          padding: 16px 0;
-          border-bottom: 1px solid transparent;
-          display: grid;
-          gap: 4px;
-        }
-        .about-list-period {
-          font-size: 10px;
-          letter-spacing: 0.08em;
-        }
-        .about-list-title {
-          font-size: 15px;
-          line-height: 1.4;
-          font-weight: 600;
-        }
-        .about-list-sub {
-          font-size: 14px;
-          line-height: 1.4;
-        }
-        .about-contact {
-          padding: 48px 0 24px;
-        }
-        .about-contact-headline {
-          margin: 0 0 24px;
-          font-size: clamp(1.5rem, 3vw, 2rem);
-          line-height: 1.35;
-          max-width: 28em;
-        }
-        .about-contact-links {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-        .about-contact-link {
-          display: inline-flex;
-          padding: 10px 18px;
-          border-radius: 999px;
-          border: 1px solid transparent;
-          text-decoration: none;
-          font-size: 10px;
-          font-weight: 600;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          transition: opacity 0.18s ease;
-        }
-        .about-contact-link:hover {
-          opacity: 0.72;
         }
         .cs-editorial {
           display: grid;
@@ -6639,29 +5212,15 @@ export default function App() {
           .ed-chrome-project-nums {
             flex-wrap: wrap;
           }
-          .about-hero-band {
-            margin-left: -20px;
-            margin-right: -20px;
-            padding-left: 20px;
-            padding-right: 20px;
-          }
           .layout-tab-bar--inset {
             padding-left: 20px;
             padding-right: 20px;
           }
-          .about-layout--grid .studio-topbar,
-          .about-layout--grid .studio-grid,
-          .about-layout--grid .studio-marquee,
-          .about-layout--editorial,
           .project-layout--editorial,
           .spread-project-bar,
           .spread-band--text,
           .spread-band--quote,
           .spread-band--stats,
-          .spread-about-head,
-          .spread-about-bio,
-          .spread-about-table,
-          .about-layout--frame,
           .project-layout--frame {
             padding-left: 20px;
             padding-right: 20px;
@@ -6677,12 +5236,10 @@ export default function App() {
             padding: 32px 20px 64px;
           }
           .studio-grid,
-          .domini-about-columns,
           .chromatic-columns,
           .project-chromatic-meta {
             grid-template-columns: 1fr;
           }
-          .domini-about-split,
           .project-studio-split,
           .frame-body,
           .ed-spread-main,
@@ -6714,10 +5271,6 @@ export default function App() {
           .project-chromatic-card {
             margin: 0 -20px;
             padding: 0 20px 48px;
-          }
-          .about-grid {
-            grid-template-columns: 1fr;
-            gap: 40px;
           }
           .cs-meta-row {
             margin-left: -20px;
@@ -7299,3 +5852,4 @@ function clothShape(pc, x, y, on, P, creatorType, currentSeasonKey, lampWarmth =
     </g>
   );
 }
+
