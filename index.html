@@ -406,8 +406,11 @@
       .from('.anim-hero-amp',{ opacity: 0, duration: 0.7 }, 0.88)
       .from('.hero-t',       { yPercent: 105, duration: 1.2 }, 0.73)
       .from('.anim-hero-meta',{ y: 18, opacity: 0, duration: 0.75, stagger: 0.1 }, 1.1)
-      .from('.anim-hero-cta',{ scale: 0.82, opacity: 0, duration: 0.65,
+            .from('.anim-hero-cta',{ scale: 0.82, opacity: 0, duration: 0.65,
                                ease: 'back.out(1.5)' }, 1.46);
+    tl.eventCallback('onComplete', function() {
+      gsap.set('.anim-hero-top, .hero-a, .anim-hero-amp, .hero-t, .anim-hero-meta, .anim-hero-cta', { clearProps: 'all' });
+    });
   }
 
   /* ── Hero background parallax ────────────────────────────────────────── */
