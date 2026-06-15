@@ -291,7 +291,7 @@
       <h2 class="section-title anim-title">RSVP</h2>
       <p class="section-sub">Kindly reply by March 1, 2027</p>
       <div class="rsvp-embed" style="max-width:680px;margin:26px auto 0;">
-        <iframe title="RSVP form" src="https://docs.google.com/forms/d/e/1FAIpQLSehfrpWXMMAmhIVV8-nu1hno4BzcQJ11cveiua7EPy-tKYR3g/viewform?embedded=true" width="100%" height="820" frameborder="0" marginheight="0" marginwidth="0" style="width:100%;border:none;border-radius:8px;display:block;background:var(--paper);">Loading the RSVP form&hellip;</iframe>
+        <iframe id="rsvpFrame" title="RSVP form" src="https://docs.google.com/forms/d/e/1FAIpQLSehfrpWXMMAmhIVV8-nu1hno4BzcQJ11cveiua7EPy-tKYR3g/viewform?embedded=true" width="100%" height="820" frameborder="0" marginheight="0" marginwidth="0" style="width:100%;border:none;border-radius:8px;display:block;background:var(--paper);transition:height .5s ease;">Loading the RSVP form&hellip;</iframe>
       </div>
     </div>
   </section>
@@ -491,6 +491,20 @@
       bg.style.transform = 'translateX(' + (dx * -34) + 'px)';
     });
     hero.addEventListener('pointerleave', function () { bg.style.transform = 'translateX(0)'; });
+  })();
+
+  // RSVP form: the iframe fires a 2nd 'load' when it navigates to Google's
+  // "response recorded" confirmation page after submit. We can't read its
+  // (cross-origin) height, but on that 2nd load we shrink the frame so the
+  // short confirmation hugs without a tall empty area below it.
+  (function () {
+    var frame = document.getElementById('rsvpFrame');
+    if (!frame) return;
+    var loads = 0;
+    frame.addEventListener('load', function () {
+      loads += 1;
+      if (loads >= 2) frame.style.height = '340px';
+    });
   })();
 </script>
 </body>
