@@ -398,8 +398,9 @@
 
   /* ── Hero entrance ───────────────────────────────────────────────────── */
   function heroEntrance() {
+    gsap.set('.hero-bg', { scale: 1.06, transformOrigin: 'center center' });
     var tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
-    tl.from('.hero-bg',       { scale: 1.06, duration: 2.0, ease: 'power2.out',
+    tl.to('.hero-bg',         { scale: 1, duration: 2.0, ease: 'power2.out',
                                 transformOrigin: 'center center',
                                 onComplete: function() { gsap.set('#heroBg', { clearProps: 'transform,willChange' }); } }, 0)
       .fromTo('.anim-hero-top', { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9 }, 0.35)
@@ -497,6 +498,12 @@
     }
   }
 
+  /* ── Hero entrance: run as soon as DOM is ready, no need to wait for images */
+  document.addEventListener('DOMContentLoaded', function () {
+    heroEntrance();
+    heroParallax();
+  });
+
   /* ── Patch the original go() to also trigger page animations ────────── */
   window.addEventListener('load', function () {
     /* grab reference to original go() defined in the page script */
@@ -512,8 +519,6 @@
       setTimeout(function () { animatePage('rsvp'); }, 30);
     });
 
-    heroEntrance();
-    heroParallax();
     storyAnimations();
   });
 }());
