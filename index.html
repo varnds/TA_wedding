@@ -59,6 +59,7 @@
   .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; max-width: 100%; pointer-events: none; isolation: isolate; }
   .hero-track { display: flex; height: 100%; width: max-content; gap: 0; animation: heroDrift 45s linear infinite; animation-play-state: running !important; will-change: transform; backface-visibility: hidden; }
   .hero-track img { height: 100%; width: auto; object-fit: cover; display: block; flex: 0 0 auto; }
+  /* hero text initial hide is done via gsap.set() synchronously in the script below GSAP CDN load */
   @keyframes heroDrift { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
   .hero::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
     background: linear-gradient(rgba(36,31,26,.44), rgba(36,31,26,.64)); }
@@ -200,6 +201,11 @@
   <!-- Motion libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script>
+    // Hide hero text before first paint so there's no flash of visible content.
+    // Must run synchronously here (not in window.load) so it takes effect before render.
+    gsap.set('.anim-hero-top,.hero-a,.hero-t,.anim-hero-amp,.anim-hero-meta,.anim-hero-cta', { opacity: 0 });
+  </script>
 </head>
 <body>
 
@@ -398,18 +404,17 @@
   /* ── Hero entrance ───────────────────────────────────────────────────── */
   function heroEntrance() {
     var tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
-    tl.from('.hero-bg',      { scale: 1.06, duration: 2.0, ease: 'power2.out',
-                               transformOrigin: 'center center',
-                               onComplete: function() { gsap.set('#heroBg', { clearProps: 'transform,willChange' }); } }, 0)
-      .from('.anim-hero-top',{ y: 22, opacity: 0, duration: 0.9 }, 0.35)
-      .from('.hero-a',       { yPercent: 105, duration: 1.2 }, 0.55)
-      .from('.anim-hero-amp',{ opacity: 0, duration: 0.7 }, 0.88)
-      .from('.hero-t',       { yPercent: 105, duration: 1.2 }, 0.73)
-      .from('.anim-hero-meta',{ y: 18, opacity: 0, duration: 0.75, stagger: 0.1 }, 1.1)
-            .from('.anim-hero-cta',{ scale: 0.82, opacity: 0, duration: 0.65,
-                               ease: 'back.out(1.5)' }, 1.46);
+    tl.from('.hero-bg',       { scale: 1.06, duration: 2.0, ease: 'power2.out',
+                                transformOrigin: 'center center',
+                                onComplete: function() { gsap.set('#heroBg', { clearProps: 'transform,willChange' }); } }, 0)
+      .fromTo('.anim-hero-top', { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9 }, 0.35)
+      .fromTo('.hero-a',        { yPercent: 105, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 1.2 }, 0.55)
+      .fromTo('.anim-hero-amp', { opacity: 0 }, { opacity: 1, duration: 0.7 }, 0.88)
+      .fromTo('.hero-t',        { yPercent: 105, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 1.2 }, 0.73)
+      .fromTo('.anim-hero-meta',{ y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.75, stagger: 0.1 }, 1.1)
+      .fromTo('.anim-hero-cta', { scale: 0.82, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.65, ease: 'back.out(1.5)' }, 1.46);
     tl.eventCallback('onComplete', function() {
-      gsap.set('.anim-hero-top, .hero-a, .anim-hero-amp, .hero-t, .anim-hero-meta, .anim-hero-cta', { clearProps: 'all' });
+      gsap.set('.anim-hero-top, .hero-a, .anim-hero-amp, .hero-t, .anim-hero-meta, .anim-hero-cta', { clearProps: 'transform,y,yPercent,scale' });
     });
   }
 
