@@ -59,6 +59,7 @@
   .hero-bg { position: absolute; inset: 0; overflow: hidden; z-index: 0; max-width: 100%; pointer-events: none; isolation: isolate; }
   .hero-track { display: flex; height: 100%; width: max-content; gap: 0; animation: heroDrift 45s linear infinite; animation-play-state: running !important; will-change: transform; backface-visibility: hidden; }
   .hero-track img { height: 100%; width: auto; object-fit: cover; display: block; flex: 0 0 auto; }
+  .anim-hero-top, .hero-a, .hero-t, .anim-hero-amp, .anim-hero-meta, .anim-hero-cta { opacity: 0; }
   @keyframes heroDrift { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
   .hero::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
     background: linear-gradient(rgba(36,31,26,.44), rgba(36,31,26,.64)); }
